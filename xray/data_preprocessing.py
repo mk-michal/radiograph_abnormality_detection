@@ -1,11 +1,7 @@
 import logging
 import os
-from typing import Dict, List
 
-import matplotlib.pyplot as plt
 import pydicom
-import csv
-from zipfile import ZipFile
 
 import torch
 import torchvision
@@ -27,17 +23,24 @@ class ZeroToOneTransform():
         return (image - image.min())/(image - image.min()).max()
 
 
-
-
 class XRayDataset:
-    def __init__(self, mode: str = 'train', data_dir: str = '../data/chest_xray/'):
-        self.mode_dir = os.path.join(data_dir, mode)
+    def __init__(self, mode: str = 'train', data_dir: str = '../data/chest_xray/', split=0.8):
+        self.mode = mode
+
+        self.mode_dir = os.path.join(data_dir, self.mode if mode != 'eval' else 'train')
 
         self.available_files = [
             f.split('.')[0] for f in os.listdir(self.mode_dir) if f.endswith('dicom')
         ]
+
+        if self.mode == 'train':
+            self.available_files = self.available_files[:int(split * len(self.available_files))]
+        elif self.mode == 'eval':
+            self.available_files = self.available_files[int((1 -split) * len(self.available_files)):]
+
         self.logger = logging.getLogger('XRayDataset')
-        self.data_desc = pd.read_csv(os.path.join(data_dir, f'{mode}.csv'))
+        if self.mode != 'test':
+            self.data_desc = pd.read_csv(os.path.join(data_dir, 'train.csv'))
         self.transform = torchvision.transforms.Compose([
             torchvision.transforms.ToPILImage(),
             torchvision.transforms.Resize((400,400)),
@@ -48,18 +51,17 @@ class XRayDataset:
 
     def __getitem__(self, item, max_bboxes: int = 16):
         image = pydicom.read_file(os.path.join(self.mode_dir, self.available_files[item] + '.dicom'))
+        if self.mode == 'test':
+            return self.transform(image.pixel_array.copy().astype('float32'))
         file_description = self.data_desc.loc[self.data_desc.image_id == self.available_files[item]]
 
-        # bboxes = torch.zeros(max_bboxes, 4)
-        # labels = torch.zeros(max_bboxes)
         # TODO: Do IoU for the bboxes and make some mean for shared boxes > than lets say 0.4
-
         class_names, bboxes, labels = [], [], []
         for _, row in file_description.iterrows():
             if not np.isnan(row.x_max):
 
                 bboxes.append((row.x_min, row.y_min, row.x_max, row.y_max))
-                labels.append(row.class_id)
+                labels.append(row.class_id + 1)
                 class_names.append(row.class_name)
         bboxes, labels = tuple(map(torch.Tensor, [bboxes, labels]))
 
@@ -80,3 +82,5 @@ class XRayDataset:
 
     def __len__(self):
         return len(self.available_files)
+
+    def get_true_df(self):
