@@ -84,3 +84,5 @@ class XRayDataset:
         return len(self.available_files)
 
     def get_true_df(self):
+        if self.mode != 'test':
+            return self.data_desc.loc[self.data_desc.image_id.isin(self.available_files)]
