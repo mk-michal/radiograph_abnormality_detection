@@ -14,7 +14,14 @@ from xray.evaluation import VinBigDataEval
 from xray.data_preprocessing import XRayDataset
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--lr')
+parser.add_argument('-lr', default=0.01, type=float)
+parser.add_argument('--device', default='cpu', type=str)
+parser.add_argument('--momentum', default=0.9, type=float)
+parser.add_argument('--n_epochs', default=100, type=int)
+parser.add_argument('--batch-size', default=32, type=int)
+parser.add_argument('--log-step', default=20, type=int)
+
+
 
 def time_str(fmt=None):
     if fmt is None:
@@ -64,27 +71,21 @@ def create_eval_df(results, descriptions):
     return eval_df
 
 
-
-
-    pass
-
-
 def train():
-
+    cfg = parser.parse_args()
     logger = logging.getLogger('Training')
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)
-    model.to('cpu')
+    model.to(cfg.device)
 
-    optimizer = SGD(model.parameters(), weight_decay=0.005, lr = 0.001, momentum=0.9)
-    # optimizer.to('cpu')
+    optimizer = SGD(model.parameters(), weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
 
     train_loader = DataLoader(
         XRayDataset('train'),
-        shuffle=False,
+        shuffle=True,
         num_workers=0,
-        batch_size=32,
+        batch_size=cfg.batch_size,
         collate_fn=my_custom_collate
     )
 
@@ -92,7 +93,7 @@ def train():
         XRayDataset('eval'),
         shuffle=False,
         num_workers=0,
-        batch_size=32,
+        batch_size=cfg.batch_size,
         collate_fn=my_custom_collate
     )
 
@@ -100,26 +101,23 @@ def train():
         XRayDataset('test'),
         shuffle=False,
         num_workers=0,
-        batch_size=32,
+        batch_size=cfg.batch_size,
     )
 
     logger.info('Starting training')
-    for epoch in range(10):
+    for epoch in cfg.n_epochs:
         model.train()
         epoch_time = time.time()
         for step, (x_batch, y_batch) in enumerate(train_loader):
+            x_batch = x_batch.to(cfg.device)
+            y_batch = y_batch.to(cfg.device)
             batch_time = time.time()
             loss_dict = model(x_batch, y_batch)
             total_loss = sum(loss for loss in loss_dict.values())
             optimizer.zero_grad()
 
             total_loss.backward()
-            optimizer.step()
-            logger.warning(
-                f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
-                f'train_loss:{total_loss.item():.4f}'
-            )
-            if (step + 1) % 20 == 0 or (step + 1) == len(train_loader):
+            if (step + 1) % cfg.log_step == 0 or (step + 1) == len(train_loader):
                 logger.info(
                     f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
                     f'train_loss:{total_loss.item():.4f}'
@@ -138,19 +136,20 @@ def train():
             all_targets = []
 
             for i, (x_eval, x_target) in enumerate(eval_loader):
+                x_eval = x_eval.to(cfg.device)
+                x_target = x_target.to(cfg.device)
                 results = model(x_eval)
                 # evaluate_result(all_results)
                 target_values.extend(x_target)
 
                 all_results.extend(results)
                 all_targets.extend(x_target)
-                if i >= 2:
-                    break
 
             true_df = create_true_df(descriptions=x_target)
             eval_df = create_eval_df(results=all_results,descriptions=x_target)
             vinbigeval = VinBigDataEval(true_df)
             final_evaluation = vinbigeval.evaluate(eval_df)
+
 
 
 if __name__ == '__main__':
