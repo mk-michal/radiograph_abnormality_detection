@@ -1,6 +1,9 @@
 import argparse
+import copy
 import datetime
+import json
 import logging
+import os
 import time
 
 import pandas as pd
@@ -13,7 +16,11 @@ from torch.optim import SGD
 from xray.evaluation import VinBigDataEval
 from xray.data_preprocessing import XRayDataset
 
+logging.basicConfig(level=logging.INFO)
+
 parser = argparse.ArgumentParser()
+parser.add_argument('--data-path', default='../data/chest_xray/', type=str)
+parser.add_argument('--save-model', default='../data/chest_xray', type=str)
 parser.add_argument('-lr', default=0.01, type=float)
 parser.add_argument('--device', default='cpu', type=str)
 parser.add_argument('--momentum', default=0.9, type=float)
@@ -82,7 +89,7 @@ def train():
     optimizer = SGD(model.parameters(), weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
 
     train_loader = DataLoader(
-        XRayDataset('train'),
+        XRayDataset('train', data_dir=cfg.data_path),
         shuffle=True,
         num_workers=0,
         batch_size=cfg.batch_size,
@@ -90,7 +97,7 @@ def train():
     )
 
     eval_loader = DataLoader(
-        XRayDataset('eval'),
+        XRayDataset('eval', data_dir=cfg.data_path),
         shuffle=False,
         num_workers=0,
         batch_size=cfg.batch_size,
@@ -98,13 +105,14 @@ def train():
     )
 
     test_loader = DataLoader(
-        XRayDataset('test'),
+        XRayDataset('test', data_dir=cfg.data_path),
         shuffle=False,
         num_workers=0,
         batch_size=cfg.batch_size,
     )
-
+    model_path_folder = os.path.join(cfg.save_path, time_str())
     logger.info('Starting training')
+    best_eval_ma = 0
     for epoch in cfg.n_epochs:
         model.train()
         epoch_time = time.time()
@@ -139,7 +147,6 @@ def train():
                 x_eval = x_eval.to(cfg.device)
                 x_target = x_target.to(cfg.device)
                 results = model(x_eval)
-                # evaluate_result(all_results)
                 target_values.extend(x_target)
 
                 all_results.extend(results)
@@ -149,11 +156,16 @@ def train():
             eval_df = create_eval_df(results=all_results,descriptions=x_target)
             vinbigeval = VinBigDataEval(true_df)
             final_evaluation = vinbigeval.evaluate(eval_df)
+            if final_evaluation > best_eval_ma:
+                best_model = copy.deepcopy(model)
 
+    logger.info(f'Saving best model to {cfg.save_path}')
+    torch.save(best_model.state_dict(), os.path.join(model_path_folder, 'best_model.cfg'))
+    with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:
+        json.dump(cfg.__dict__, j)
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
     train()
 
 
