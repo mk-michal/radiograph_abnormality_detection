@@ -76,13 +76,15 @@ class XRayDataset:
 
 
 class XRAYShelveLoad:
-    def __init__(self, mode = 'train', data_path = '../data/chest_xray/', split = 0.8):
+    def __init__(self, mode = 'train', data_dir = '../data/chest_xray/', split = 0.8):
         if mode not in ['train', 'test', 'eval']:
             raise KeyError('Mode needs to be in [train, test, eval]')
 
         self.transform = albumentations.Compose([
             albumentations.Resize(400,400),
-            albumentations.Normalize(0.485, 0.229)]
+            albumentations.Normalize(0.485, 0.229)],
+        bbox_params=albumentations.BboxParams(format='pascal_voc')
+
         )
         # self.transform = torchvision.transforms.Compose([
         #     torchvision.transforms.ToPILImage(),
@@ -93,12 +95,12 @@ class XRAYShelveLoad:
 
         self.available_files = [
             f.split('.')[0] for f in os.listdir(
-                os.path.join(data_path, 'test' if mode == 'test' else 'train')
+                os.path.join(data_dir, 'test' if mode == 'test' else 'train')
             ) if f.endswith('dicom')
         ]
         if mode in ['train', 'eval']:
             self.database = shelve.open(
-                os.path.join(data_path, 'train_data.db'), flag='r', writeback=False
+                os.path.join(data_dir, 'train_data.db'), flag='r', writeback=False
             )
             if mode == 'train':
                 self.available_files = self.available_files[: int(len(self.available_files) * split)]
@@ -107,23 +109,28 @@ class XRAYShelveLoad:
 
         else:
             self.database = shelve.open(
-                os.path.join(data_path, 'test_data.db'), flag='r', writeback=False
+                os.path.join(data_dir, 'test_data.db'), flag='r', writeback=False
             )
 
     def __len__(self):
-        return len(self.database)
+        return len(self.available_files)
 
     def __getitem__(self, item):
-        item_data = self.database[item]
+        item_data = self.database[self.available_files[item]]
 
         image_transformed = self.transform(
-            image=np.expand_dims(item_data['image'], axis=0),
+            image=np.expand_dims(item_data['image'], axis=2),
             bboxes=item_data['bboxes'],
-            class_labels=item_data['class_labels']
+            class_labels=item_data['class_labels'],
+            rad_id=item_data['rad_id'],
+            image_name=self.available_files[item]
         )
         image_transformed['image'] = np.transpose(image_transformed['image'], axes=(2,0,1))
         image_transformed['image'] = torch.from_numpy(image_transformed['image'])
-        return image_transformed
+        return image_transformed['image'], {
+            'boxes': torch.Tensor([box[:4] for box in image_transformed['bboxes']]),
+            'labels': torch.Tensor(image_transformed['class_labels']).long()
+        }
 
 
 class ZeroToOneTransform():

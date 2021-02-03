@@ -14,13 +14,14 @@ import torchvision
 from torch.optim import SGD
 
 from xray.evaluation import VinBigDataEval
-from xray.data_preprocessing import XRayDataset
+from xray.dataset import XRAYShelveLoad
 
 logging.basicConfig(level=logging.INFO)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data-path', default='../data/chest_xray/', type=str)
-parser.add_argument('--save-model', default='../data/chest_xray', type=str)
+parser.add_argument('--save-path', default='../data/chest_xray', type=str)
+parser.add_argument('--n-workers', default=1, type=int)
 parser.add_argument('-lr', default=0.01, type=float)
 parser.add_argument('--device', default='cpu', type=str)
 parser.add_argument('--momentum', default=0.9, type=float)
@@ -38,8 +39,12 @@ def time_str(fmt=None):
     return datetime.datetime.today().strftime(fmt)
 
 
+# def my_custom_collate(x):
+#     x = [(a,b) for a,b in x if b['bboxes'].size()[0] != 0]
+#     return list(zip(*x))
+
 def my_custom_collate(x):
-    x = [(a,b) for a,b in x if b['boxes'].size()[0] != 0]
+    x = [(a,b) for a,b in x]
     return list(zip(*x))
 
 def create_true_df(descriptions):
@@ -89,36 +94,37 @@ def train():
     optimizer = SGD(model.parameters(), weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
 
     train_loader = DataLoader(
-        XRayDataset('train', data_dir=cfg.data_path),
+        XRAYShelveLoad('train', data_dir=cfg.data_path),
         shuffle=True,
-        num_workers=0,
+        num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
         collate_fn=my_custom_collate
     )
 
     eval_loader = DataLoader(
-        XRayDataset('eval', data_dir=cfg.data_path),
+        XRAYShelveLoad('eval', data_dir=cfg.data_path),
         shuffle=False,
-        num_workers=0,
+        num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
         collate_fn=my_custom_collate
     )
 
     test_loader = DataLoader(
-        XRayDataset('test', data_dir=cfg.data_path),
+        XRAYShelveLoad('test', data_dir=cfg.data_path),
         shuffle=False,
-        num_workers=0,
+        num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
     )
+
     model_path_folder = os.path.join(cfg.save_path, time_str())
     logger.info('Starting training')
     best_eval_ma = 0
-    for epoch in cfg.n_epochs:
+    for epoch in range(cfg.n_epochs):
         model.train()
         epoch_time = time.time()
         for step, (x_batch, y_batch) in enumerate(train_loader):
-            x_batch = x_batch.to(cfg.device)
-            y_batch = y_batch.to(cfg.device)
+            x_batch = torch.stack(x_batch).to(cfg.device)
+            # y_batch = y_batch.to(cfg.device)
             batch_time = time.time()
             loss_dict = model(x_batch, y_batch)
             total_loss = sum(loss for loss in loss_dict.values())
@@ -130,7 +136,8 @@ def train():
                     f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
                     f'train_loss:{total_loss.item():.4f}'
                 )
-            break
+            if step > 2:
+                break
 
 
         logger.info(f'Epoch duration: {time.time() - epoch_time}')
@@ -144,13 +151,16 @@ def train():
             all_targets = []
 
             for i, (x_eval, x_target) in enumerate(eval_loader):
-                x_eval = x_eval.to(cfg.device)
-                x_target = x_target.to(cfg.device)
+                x_eval = torch.stack(x_eval).to(cfg.device)
+                # x_target['bboxes'] = x_target['bboxes'].to(cfg.device)
+
                 results = model(x_eval)
                 target_values.extend(x_target)
 
                 all_results.extend(results)
                 all_targets.extend(x_target)
+                if i >2:
+                    break
 
             true_df = create_true_df(descriptions=x_target)
             eval_df = create_eval_df(results=all_results,descriptions=x_target)
@@ -159,10 +169,12 @@ def train():
             if final_evaluation > best_eval_ma:
                 best_model = copy.deepcopy(model)
 
+
     logger.info(f'Saving best model to {cfg.save_path}')
     torch.save(best_model.state_dict(), os.path.join(model_path_folder, 'best_model.cfg'))
     with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:
         json.dump(cfg.__dict__, j)
+
 
 
 if __name__ == '__main__':
