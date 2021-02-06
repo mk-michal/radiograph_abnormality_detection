@@ -86,12 +86,6 @@ class XRAYShelveLoad:
         bbox_params=albumentations.BboxParams(format='pascal_voc')
 
         )
-        # self.transform = torchvision.transforms.Compose([
-        #     torchvision.transforms.ToPILImage(),
-        #     torchvision.transforms.Resize((400,400)),
-        #     torchvision.transforms.ToTensor(),
-        #     torchvision.transforms.Normalize(())
-        # ])
 
         self.available_files = [
             f.split('.')[0] for f in os.listdir(
@@ -129,7 +123,8 @@ class XRAYShelveLoad:
         image_transformed['image'] = torch.from_numpy(image_transformed['image'])
         return image_transformed['image'], {
             'boxes': torch.Tensor([box[:4] for box in image_transformed['bboxes']]),
-            'labels': torch.Tensor(image_transformed['class_labels']).long()
+            'labels': torch.Tensor(image_transformed['class_labels']).long(),
+            'file_name': image_transformed['image_name']
         }
 
 
