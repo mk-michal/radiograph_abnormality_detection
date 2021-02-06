@@ -66,14 +66,14 @@ def create_true_df(descriptions):
 def create_eval_df(results, descriptions):
 
     image_ids = []
+    string_scores = []
     for result, desc in zip(results, descriptions):
-        image_ids.append(descriptions['file_name'])
         string_bboxes = list(map(
             lambda x: ' '.join([str(i.item()) for i in  x.long()]) if len(x.size()) !=0 else '14 1 0 0 1 1',
             result['boxes']
         ))
-        string_scores = []
         for bbox, score, pred_class in zip(string_bboxes, result['scores'], result['labels']):
+            image_ids.append(desc['file_name'])
             string_scores.append(f'{pred_class.item()} {score.item()} {bbox}')
 
     eval_df = pd.DataFrame({'image_id': image_ids, 'PredictionString': string_scores})
@@ -134,8 +134,6 @@ def train():
                     f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
                     f'train_loss:{total_loss.item():.4f}'
                 )
-            if step > 2:
-                break
 
 
         logger.info(f'Epoch duration: {time.time() - epoch_time}')
@@ -157,17 +155,15 @@ def train():
 
                 all_results.extend(results)
                 all_targets.extend(x_target)
-                if i >2:
-                    break
 
-            true_df = create_true_df(descriptions=x_target)
-            eval_df = create_eval_df(results=all_results,descriptions=x_target)
+            true_df = create_true_df(descriptions=all_targets)
+            eval_df = create_eval_df(results=all_results,descriptions=all_targets)
             vinbigeval = VinBigDataEval(true_df)
             final_evaluation = vinbigeval.evaluate(eval_df)
-            if final_evaluation > best_eval_ma:
+            if final_evaluation.stats[0] > best_eval_ma:
                 best_model = copy.deepcopy(model)
 
-    logger.info("==================================================================="*50)
+    logger.info("===================================================================")
     logger.info("Testing best model on test set")
     with torch.no_grad():
         best_model.eval()
