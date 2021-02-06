@@ -39,10 +39,6 @@ def time_str(fmt=None):
     return datetime.datetime.today().strftime(fmt)
 
 
-# def my_custom_collate(x):
-#     x = [(a,b) for a,b in x if b['bboxes'].size()[0] != 0]
-#     return list(zip(*x))
-
 def my_custom_collate(x):
     x = [(a,b) for a,b in x]
     return list(zip(*x))
@@ -68,9 +64,10 @@ def create_true_df(descriptions):
 
 
 def create_eval_df(results, descriptions):
-    eval_df = pd.DataFrame(columns=['image_id','PredictionString'])
 
+    image_ids = []
     for result, desc in zip(results, descriptions):
+        image_ids.append(descriptions['file_name'])
         string_bboxes = list(map(
             lambda x: ' '.join([str(i.item()) for i in  x.long()]) if len(x.size()) !=0 else '14 1 0 0 1 1',
             result['boxes']
@@ -79,6 +76,7 @@ def create_eval_df(results, descriptions):
         for bbox, score, pred_class in zip(string_bboxes, result['scores'], result['labels']):
             string_scores.append(f'{pred_class.item()} {score.item()} {bbox}')
 
+    eval_df = pd.DataFrame({'image_id': image_ids, 'PredictionString': string_scores})
 
     return eval_df
 
@@ -169,11 +167,34 @@ def train():
             if final_evaluation > best_eval_ma:
                 best_model = copy.deepcopy(model)
 
+    logger.info("==================================================================="*50)
+    logger.info("Testing best model on test set")
+    with torch.no_grad():
+        best_model.eval()
+        all_results = []
+        all_targets = []
 
-    logger.info(f'Saving best model to {cfg.save_path}')
-    torch.save(best_model.state_dict(), os.path.join(model_path_folder, 'best_model.cfg'))
+        for i, (x_test, x_target) in enumerate(test_loader):
+            x_test = torch.stack(x_test).to(cfg.device)
+            # x_target['bboxes'] = x_target['bboxes'].to(cfg.device)
+
+            results = best_model(x_test)
+            target_values.extend(x_target)
+
+            all_results.extend(results)
+            all_targets.extend(x_target)
+
+    final_test_df = create_eval_df(x_test)
+
+    best_model_path = os.path.join(model_path_folder, 'best_model.cfg')
+    logger.info(f'Saving best model to {best_model_path}')
+    torch.save(best_model.state_dict(), best_model_path)
     with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:
         json.dump(cfg.__dict__, j)
+
+    final_results_save_path = os.path.join(model_path_folder, 'final_result_test.csv')
+    logger.info(f'Saving final results for tests set into {final_results_save_path}  ')
+    final_test_df.to_csv(final_results_save_path)
 
 
 
