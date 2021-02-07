@@ -123,6 +123,9 @@ def train():
         epoch_time = time.time()
         for step, (x_batch, y_batch) in enumerate(train_loader):
             x_batch = torch.stack(x_batch).to(cfg.device)
+            y_batch = [
+                {'boxes': j['boxes'].to(cfg.device), 'labels': j['labels'].to(cfg.device)} for j in y_batch
+            ]
             # y_batch = y_batch.to(cfg.device)
             batch_time = time.time()
             loss_dict = model(x_batch, y_batch)
@@ -149,8 +152,6 @@ def train():
 
             for i, (x_eval, x_target) in enumerate(eval_loader):
                 x_eval = torch.stack(x_eval).to(cfg.device)
-                # x_target['bboxes'] = x_target['bboxes'].to(cfg.device)
-
                 results = model(x_eval)
                 target_values.extend(x_target)
 
