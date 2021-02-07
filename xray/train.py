@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data-path', default='../data/chest_xray/', type=str)
+parser.add_argument('--database-path', default='../data/chest_xray/', type=str)
 parser.add_argument('--save-path', default='../data/chest_xray', type=str)
 parser.add_argument('--n-workers', default=1, type=int)
 parser.add_argument('-lr', default=0.01, type=float)
@@ -92,7 +93,7 @@ def train():
     optimizer = SGD(model.parameters(), weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
 
     train_loader = DataLoader(
-        XRAYShelveLoad('train', data_dir=cfg.data_path),
+        XRAYShelveLoad('train', data_dir=cfg.data_path, database_dir=cfg.database_path),
         shuffle=True,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
@@ -100,7 +101,7 @@ def train():
     )
 
     eval_loader = DataLoader(
-        XRAYShelveLoad('eval', data_dir=cfg.data_path),
+        XRAYShelveLoad('eval', data_dir=cfg.data_path, database_dir=cfg.database_path),
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
@@ -108,7 +109,7 @@ def train():
     )
 
     test_loader = DataLoader(
-        XRAYShelveLoad('test', data_dir=cfg.data_path),
+        XRAYShelveLoad('test', data_dir=cfg.data_path, database_dir=cfg.database_path),
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,

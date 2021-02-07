@@ -76,7 +76,13 @@ class XRayDataset:
 
 
 class XRAYShelveLoad:
-    def __init__(self, mode = 'train', data_dir = '../data/chest_xray/', split = 0.8):
+    def __init__(
+        self,
+        mode = 'train',
+        data_dir = '../data/chest_xray/',
+        database_dir = '../data/chest_xray/',
+        split = 0.8
+    ):
         if mode not in ['train', 'test', 'eval']:
             raise KeyError('Mode needs to be in [train, test, eval]')
 
@@ -94,7 +100,7 @@ class XRAYShelveLoad:
         ]
         if mode in ['train', 'eval']:
             self.database = shelve.open(
-                os.path.join(data_dir, 'train_data.db'), flag='r', writeback=False
+                os.path.join(database_dir, 'train_data.db'), flag='r', writeback=False
             )
             if mode == 'train':
                 self.available_files = self.available_files[: int(len(self.available_files) * split)]
@@ -103,7 +109,7 @@ class XRAYShelveLoad:
 
         else:
             self.database = shelve.open(
-                os.path.join(data_dir, 'test_data.db'), flag='r', writeback=False
+                os.path.join(database_dir, 'test_data.db'), flag='r', writeback=False
             )
 
     def __len__(self):
