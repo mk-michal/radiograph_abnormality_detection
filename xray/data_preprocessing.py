@@ -6,6 +6,7 @@ import os
 from pydicom.pixel_data_handlers.util import apply_voi_lut
 import albumentations
 import pydicom
+import warnings
 
 from fastcore.parallel import parallel
 import shelve
@@ -18,10 +19,13 @@ def read_xray(path, voi_lut=True, fix_monochrome=True):
     dicom = pydicom.read_file(path)
 
     # VOI LUT (if available by DICOM device) is used to transform raw DICOM data to "human-friendly" view
-    if voi_lut:
-        data = apply_voi_lut(dicom.pixel_array, dicom)
-    else:
-        data = dicom.pixel_array
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        if voi_lut:
+
+            data = apply_voi_lut(dicom.pixel_array, dicom)
+        else:
+            data = dicom.pixel_array
 
     # depending on this value, X-ray may look inverted - fix that:
     if fix_monochrome and dicom.PhotometricInterpretation == "MONOCHROME1":
@@ -82,6 +86,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--n-workers', default=8, type=int)
     parser.add_argument('--data-path', default='../data/chest_xray/')
+    parser.add_argument('--data-path-output', default='../data/chest_xray/')
+
     parser.add_argument('--mode', default='train')
     cfg = parser.parse_args()
 
@@ -95,7 +101,7 @@ if __name__ == '__main__':
         progress=True
     )
 
-    with shelve.open(os.path.join(cfg.data_path, f'{cfg.mode}_data.db')) as myshelf:
+    with shelve.open(os.path.join(cfg.data_path_output, f'{cfg.mode}_data.db')) as myshelf:
         myshelf.update( { dictentry['image_id']: {'image': dictentry['image'],
                                                   'rad_id': dictentry['rad_id'],
                                                   'bboxes': dictentry['bboxes'],
