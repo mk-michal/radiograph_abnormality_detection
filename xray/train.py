@@ -84,7 +84,7 @@ def create_eval_df(results, descriptions):
 
 def train():
     cfg = parser.parse_args()
-    logger = logging.getLogger('Training')
+    logger = logging.getLogger(__name__)
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)

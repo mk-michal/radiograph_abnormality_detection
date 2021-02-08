@@ -25,7 +25,7 @@ class XRayDataset:
         elif self.mode == 'eval':
             self.available_files = self.available_files[int((1 -split) * len(self.available_files)):]
 
-        self.logger = logging.getLogger('XRayDataset')
+        self.logger = logging.getLogger(__name__)
         if self.mode != 'test':
             self.data_desc = pd.read_csv(os.path.join(data_dir, 'train.csv'))
         self.transform = torchvision.transforms.Compose([
