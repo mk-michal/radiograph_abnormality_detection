@@ -89,6 +89,7 @@ def train():
         "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s"
     )
     model_path_folder = os.path.join(cfg.save_path, time_str())
+    os.makedirs(model_path_folder, exist_ok=True)
     fileHandler = logging.FileHandler(os.path.join(model_path_folder, 'model_log.log'))
     fileHandler.setFormatter(logFormatter)
     logger.addHandler(fileHandler)
