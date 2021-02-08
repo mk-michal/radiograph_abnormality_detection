@@ -84,7 +84,15 @@ def create_eval_df(results, descriptions):
 
 def train():
     cfg = parser.parse_args()
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger('Training')
+    logFormatter = logging.Formatter(
+        "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s"
+    )
+    model_path_folder = os.path.join(cfg.save_path, time_str())
+    fileHandler = logging.FileHandler(os.path.join(model_path_folder, 'model_log.log'))
+    fileHandler.setFormatter(logFormatter)
+    logger.addHandler(fileHandler)
+
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)
@@ -115,7 +123,6 @@ def train():
         batch_size=cfg.batch_size,
     )
 
-    model_path_folder = os.path.join(cfg.save_path, time_str())
     logger.info('Starting training')
     best_eval_ma = 0
     for epoch in range(cfg.n_epochs):
