@@ -88,7 +88,8 @@ class XRAYShelveLoad:
 
         self.transform = albumentations.Compose([
             albumentations.Resize(400,400),
-            albumentations.Normalize(0.485, 0.229)],
+            # albumentations.Normalize(0.485, 0.229)
+            ],
         bbox_params=albumentations.BboxParams(format='pascal_voc')
 
         )
@@ -118,19 +119,27 @@ class XRAYShelveLoad:
     def __getitem__(self, item):
         item_data = self.database[self.available_files[item]]
 
-        image_transformed = self.transform(
-            image=np.expand_dims(item_data['image'], axis=2),
-            bboxes=item_data['bboxes'],
-            class_labels=item_data['class_labels'],
-            rad_id=item_data['rad_id'],
-            image_name=self.available_files[item]
-        )
-        image_transformed['image'] = np.transpose(image_transformed['image'], axes=(2,0,1))
-        image_transformed['image'] = torch.from_numpy(image_transformed['image'])
-        return image_transformed['image'], {
-            'boxes': torch.Tensor([box[:4] for box in image_transformed['bboxes']]),
-            'labels': torch.Tensor(image_transformed['class_labels']).long(),
-            'file_name': image_transformed['image_name']
+        # image_transformed = self.transform(
+        #     image=(np.expand_dims(item_data['image'], axis=2)/255).double(),
+        #     bboxes=item_data['bboxes'],
+        #     class_labels=item_data['class_labels'],
+        #     rad_id=item_data['rad_id'],
+        #     image_name=self.available_files[item]
+        # )
+        # image_transformed['image'] = np.transpose(image_transformed['image'], axes=(2,0,1))
+        # image_transformed['image'] = torch.from_numpy(image_transformed['image'])
+        # return image_transformed['image'], {
+        #     'boxes': torch.Tensor([box[:4] for box in image_transformed['bboxes']]),
+        #     'labels': torch.Tensor(image_transformed['class_labels']).long(),
+        #     'file_name': image_transformed['image_name']
+        # }
+        item_data['image'] = np.expand_dims(item_data['image'], axis=2)/255
+        item_data['image'] = np.transpose(item_data['image'], axes=(2, 0, 1))
+        item_data['image'] = torch.from_numpy(item_data['image']).float()
+        return item_data['image'], {
+            'boxes': torch.Tensor([box[:4] for box in item_data['bboxes']]),
+            'labels': torch.Tensor(item_data['class_labels']).long(),
+            'file_name': self.available_files[item]
         }
 
 
