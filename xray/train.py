@@ -94,7 +94,14 @@ def train():
     fileHandler.setFormatter(logFormatter)
     logger.addHandler(fileHandler)
 
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
+        pretrained=True,
+        trainable_backbone_layers=2,
+        # num_classes=15,
+        min_size=400,
+        max_size=400,
+    )
+
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)
     model.to(cfg.device)
@@ -130,7 +137,7 @@ def train():
         model.train()
         epoch_time = time.time()
         for step, (x_batch, y_batch) in enumerate(train_loader):
-            x_batch = torch.stack(x_batch).to(cfg.device)
+            x_batch = [x.to(cfg.device) for x in x_batch]
             y_batch = [
                 {'boxes': j['boxes'].to(cfg.device), 'labels': j['labels'].to(cfg.device)} for j in y_batch
             ]
