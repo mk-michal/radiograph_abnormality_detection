@@ -1,21 +1,19 @@
 import argparse
 import copy
-import datetime
 import json
 import logging
 import os
 import time
 
-import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import torchvision
 from torch.optim import SGD
 
-from xray.evaluation import VinBigDataEval
 from xray.dataset import XRAYShelveLoad
-from xray.utils import Averager, my_custom_collate
+from xray.evalutation import model_eval_forward, calculate_metrics
+from xray.utils import Averager, my_custom_collate, create_eval_df, time_str
 
 logging.basicConfig(level=logging.INFO)
 
@@ -31,52 +29,6 @@ parser.add_argument('--n_epochs', default=100, type=int)
 parser.add_argument('--batch-size', default=32, type=int)
 parser.add_argument('--log-step', default=20, type=int)
 
-
-
-def time_str(fmt=None):
-    if fmt is None:
-        fmt = '%Y-%m-%d_%H:%M:%S'
-
-    #     time.strftime(format[, t])
-    return datetime.datetime.today().strftime(fmt)
-
-
-def create_true_df(descriptions):
-    true_df = pd.DataFrame(
-        columns=['image_id', 'class_name', 'class_id', 'x_min', 'y_min', 'x_max', 'y_max']
-    )
-
-
-    for desc in descriptions:
-        bbox_df_true = pd.DataFrame(
-            desc['boxes'].numpy(), columns=['x_min', 'y_min', 'x_max', 'y_max']
-        )
-
-        bbox_df_true['class_id'] = desc['labels']
-        bbox_df_true['image_id'] = desc['file_name']
-
-        true_df = true_df.append(bbox_df_true)
-
-    return true_df
-
-
-
-def create_eval_df(results, descriptions):
-
-    image_ids = []
-    string_scores = []
-    for result, desc in zip(results, descriptions):
-        string_bboxes = list(map(
-            lambda x: ' '.join([str(i.item()) for i in  x.long()]) if len(x.size()) !=0 else '14 1 0 0 1 1',
-            result['boxes']
-        ))
-        for bbox, score, pred_class in zip(string_bboxes, result['scores'], result['labels']):
-            image_ids.append(desc['file_name'])
-            string_scores.append(f'{pred_class.item()} {score.item()} {bbox}')
-
-    eval_df = pd.DataFrame({'image_id': image_ids, 'PredictionString': string_scores})
-
-    return eval_df
 
 def train():
     cfg = parser.parse_args()
@@ -162,47 +114,24 @@ def train():
         logger.info(f'Epoch duration: {time.time() - epoch_time}')
         logger.info('==========================================')
         logger.info(f'Testing results after epoch {epoch + 1} on eval_loader {epoch + 1}')
-        target_values = []
 
-        with torch.no_grad():
-            model.eval()
-            all_results = []
-            all_targets = []
+        all_results, all_targets = model_eval_forward(model, eval_loader, cfg.device)
+        final_evaluation = calculate_metrics(all_results, all_targets)
+        logger.info(f'Ma metric on evaluation dataset after epoch {epoch} is with '
+                    f'IoU 0.4 is {final_evaluation.stats[0]}')
 
-            for i, (x_eval, x_target) in enumerate(eval_loader):
-                x_eval = [x.to(cfg.device) for x in x_eval]
-                results = model(x_eval)
-                target_values.extend(x_target)
-
-                all_results.extend(results)
-                all_targets.extend(x_target)
-
-            true_df = create_true_df(descriptions=all_targets)
-            eval_df = create_eval_df(results=all_results,descriptions=all_targets)
-            vinbigeval = VinBigDataEval(true_df)
-            final_evaluation = vinbigeval.evaluate(eval_df)
-            if final_evaluation.stats[0] > best_eval_ma:
-                best_model = copy.deepcopy(model)
+        if final_evaluation.stats[0] > best_eval_ma:
+            logger.info('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+            logger.info(f'New best model after epoch {epoch} with ma {final_evaluation.stats[0]}')
+            best_model = copy.deepcopy(model)
 
     logger.info("===================================================================")
     logger.info("Testing best model on test set")
-    with torch.no_grad():
-        best_model.eval()
-        all_results = []
-        all_targets = []
+    all_results, all_targets = model_eval_forward(model, test_loader, cfg.device)
 
-        for i, (x_test, x_target) in enumerate(test_loader):
-            x_test = [x.to(cfg.device) for x in x_test]
+    final_test_df = create_eval_df(results=all_results, descriptions=all_targets)
 
-            results = best_model(x_test)
-            target_values.extend(x_target)
-
-            all_results.extend(results)
-            all_targets.extend(x_target)
-
-    final_test_df = create_eval_df(x_test)
-
-    best_model_path = os.path.join(model_path_folder, 'best_model.cfg')
+    best_model_path = os.path.join(model_path_folder, 'best_model_rcnn.cfg')
     logger.info(f'Saving best model to {best_model_path}')
     torch.save(best_model.state_dict(), best_model_path)
     with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:

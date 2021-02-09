@@ -112,9 +112,10 @@ class XRAYShelveLoad:
             self.database = shelve.open(
                 os.path.join(database_dir, 'test_data.db'), flag='r', writeback=False
             )
+        self.length = len(self.available_files)
 
     def __len__(self):
-        return len(self.available_files)
+        return self.length
 
     def __getitem__(self, item):
         item_data = self.database[self.available_files[item]]
