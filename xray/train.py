@@ -15,6 +15,7 @@ from torch.optim import SGD
 
 from xray.evaluation import VinBigDataEval
 from xray.dataset import XRAYShelveLoad
+from xray.utils import Averager, my_custom_collate
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,10 +40,6 @@ def time_str(fmt=None):
     #     time.strftime(format[, t])
     return datetime.datetime.today().strftime(fmt)
 
-
-def my_custom_collate(x):
-    x = [(a,b) for a,b in x]
-    return list(zip(*x))
 
 def create_true_df(descriptions):
     true_df = pd.DataFrame(
@@ -80,7 +77,6 @@ def create_eval_df(results, descriptions):
     eval_df = pd.DataFrame({'image_id': image_ids, 'PredictionString': string_scores})
 
     return eval_df
-
 
 def train():
     cfg = parser.parse_args()
@@ -135,7 +131,10 @@ def train():
 
     logger.info('Starting training')
     best_eval_ma = 0
+
+    average_loss = Averager()
     for epoch in range(cfg.n_epochs):
+        average_loss.reset()
         model.train()
         epoch_time = time.time()
         for step, (x_batch, y_batch) in enumerate(train_loader):
@@ -151,11 +150,12 @@ def train():
 
             total_loss.backward()
             optimizer.step()
+            average_loss.send(total_loss.item())
 
             if (step + 1) % cfg.log_step == 0 or (step + 1) == len(train_loader):
                 logger.info(
                     f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
-                    f'train_loss:{total_loss.item():.4f}'
+                    f'train_loss:{average_loss.value:.4f}'
                 )
 
 
