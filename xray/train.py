@@ -106,7 +106,9 @@ def train():
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)
     model.to(cfg.device)
 
-    optimizer = SGD(model.parameters(), weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
+    params = [p for p in model.parameters() if p.requires_grad]
+
+    optimizer = SGD(params, weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
 
     train_loader = DataLoader(
         XRAYShelveLoad('train', data_dir=cfg.data_path, database_dir=cfg.database_path),
@@ -148,6 +150,8 @@ def train():
             optimizer.zero_grad()
 
             total_loss.backward()
+            optimizer.step()
+
             if (step + 1) % cfg.log_step == 0 or (step + 1) == len(train_loader):
                 logger.info(
                     f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
