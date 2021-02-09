@@ -166,7 +166,7 @@ def train():
             all_targets = []
 
             for i, (x_eval, x_target) in enumerate(eval_loader):
-                x_eval = torch.stack(x_eval).to(cfg.device)
+                x_eval = [x.to(cfg.device) for x in x_eval]
                 results = model(x_eval)
                 target_values.extend(x_target)
 
@@ -188,8 +188,7 @@ def train():
         all_targets = []
 
         for i, (x_test, x_target) in enumerate(test_loader):
-            x_test = torch.stack(x_test).to(cfg.device)
-            # x_target['bboxes'] = x_target['bboxes'].to(cfg.device)
+            x_test = [x.to(cfg.device) for x in x_test]
 
             results = best_model(x_test)
             target_values.extend(x_target)
