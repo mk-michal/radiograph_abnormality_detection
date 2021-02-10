@@ -28,6 +28,12 @@ parser.add_argument('--momentum', default=0.9, type=float)
 parser.add_argument('--n_epochs', default=100, type=int)
 parser.add_argument('--batch-size', default=32, type=int)
 parser.add_argument('--log-step', default=20, type=int)
+parser.add_argument('--last-epoch', default=50, type=int)
+parser.add_argument('--gamma', default=0.02, type=float)
+parser.add_argument('--step-size', default=10, type=int)
+
+
+
 
 
 def train():
@@ -57,6 +63,9 @@ def train():
     params = [p for p in model.parameters() if p.requires_grad]
 
     optimizer = SGD(params, weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(
+        optimizer=optimizer, gamma=cfg.gamma, step_size=cfg.step_size, last_epoch=cfg.last_epoch
+    )
 
     train_loader = DataLoader(
         XRAYShelveLoad('train', data_dir=cfg.data_path, database_dir=cfg.database_path),
@@ -79,6 +88,7 @@ def train():
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
+        collare_fn=my_custom_collate
     )
 
     logger.info('Starting training')
@@ -103,12 +113,12 @@ def train():
             total_loss.backward()
             optimizer.step()
             average_loss.send(total_loss.item())
-
             if (step + 1) % cfg.log_step == 0 or (step + 1) == len(train_loader):
                 logger.info(
                     f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
                     f'train_loss:{average_loss.value:.4f}'
                 )
+        lr_scheduler.step()
 
 
         logger.info(f'Epoch duration: {time.time() - epoch_time}')
@@ -121,8 +131,9 @@ def train():
                     f'IoU 0.4 is {final_evaluation.stats[0]}')
 
         if final_evaluation.stats[0] > best_eval_ma:
-            logger.info('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+            logger.info('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'*2)
             logger.info(f'New best model after epoch {epoch} with ma {final_evaluation.stats[0]}')
+            logger.info('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'*2)
             best_model = copy.deepcopy(model)
 
     logger.info("===================================================================")

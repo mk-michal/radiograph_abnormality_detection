@@ -174,7 +174,8 @@ class VinBigDataEval:
         if n_imgs > 0:
             imgIds = np.random.choice(imgIds, n_imgs)
 
-        cocoEval = COCOeval(coco_ds, coco_dt, 'bbox')
+        cocoEval = COCOevalCustom(coco_ds, coco_dt, 'bbox')
+        cocoEval.__str__ = 'Do nothing'
         cocoEval.params.imgIds = imgIds
         cocoEval.params.useCats = True
         cocoEval.params.iouType = "bbox"
@@ -185,3 +186,12 @@ class VinBigDataEval:
         cocoEval.summarize()
 
         return cocoEval
+
+
+class COCOevalCustom(COCOeval):
+    def __init__(self, cocoGt, cocoDt, ioutype):
+
+        super(COCOevalCustom, self).__init__(cocoGt, cocoDt, ioutype)
+
+    def __str__(self):
+        'Rewriting str method so that summarize is not called all the time.'
