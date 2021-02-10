@@ -28,7 +28,7 @@ parser.add_argument('--momentum', default=0.9, type=float)
 parser.add_argument('--n_epochs', default=100, type=int)
 parser.add_argument('--batch-size', default=32, type=int)
 parser.add_argument('--log-step', default=20, type=int)
-parser.add_argument('--last-epoch', default=50, type=int)
+parser.add_argument('--last-epoch', default=-1, type=int)
 parser.add_argument('--gamma', default=0.02, type=float)
 parser.add_argument('--step-size', default=10, type=int)
 
@@ -88,7 +88,7 @@ def train():
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
-        collare_fn=my_custom_collate
+        collate_fn=my_custom_collate
     )
 
     logger.info('Starting training')
