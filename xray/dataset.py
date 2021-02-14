@@ -2,7 +2,8 @@ import logging
 import os
 import shelve
 
-import albumentations
+import xray.utils
+
 import numpy as np
 import pandas as pd
 import pydicom
@@ -75,6 +76,8 @@ class XRayDataset:
             return self.data_desc.loc[self.data_desc.image_id.isin(self.available_files)]
 
 
+
+
 class XRAYShelveLoad:
     def __init__(
         self,
@@ -86,13 +89,7 @@ class XRAYShelveLoad:
         if mode not in ['train', 'test', 'eval']:
             raise KeyError('Mode needs to be in [train, test, eval]')
 
-        self.transform = albumentations.Compose([
-            albumentations.Resize(400,400),
-            # albumentations.Normalize(0.485, 0.229)
-            ],
-        bbox_params=albumentations.BboxParams(format='pascal_voc')
-
-        )
+        self.transform = xray.utils.get_augmentation()
 
         self.available_files = [
             f.split('.')[0] for f in os.listdir(
@@ -120,28 +117,36 @@ class XRAYShelveLoad:
     def __getitem__(self, item):
         item_data = self.database[self.available_files[item]]
 
-        # image_transformed = self.transform(
-        #     image=(np.expand_dims(item_data['image'], axis=2)/255).double(),
-        #     bboxes=item_data['bboxes'],
-        #     class_labels=item_data['class_labels'],
-        #     rad_id=item_data['rad_id'],
-        #     image_name=self.available_files[item]
-        # )
-        # image_transformed['image'] = np.transpose(image_transformed['image'], axes=(2,0,1))
-        # image_transformed['image'] = torch.from_numpy(image_transformed['image'])
-        # return image_transformed['image'], {
-        #     'boxes': torch.Tensor([box[:4] for box in image_transformed['bboxes']]),
-        #     'labels': torch.Tensor(image_transformed['class_labels']).long(),
-        #     'file_name': image_transformed['image_name']
-        # }
-        item_data['image'] = np.expand_dims(item_data['image'], axis=2)/255
-        item_data['image'] = np.transpose(item_data['image'], axes=(2, 0, 1))
-        item_data['image'] = torch.from_numpy(item_data['image']).float()
-        return item_data['image'], {
-            'boxes': torch.Tensor([box[:4] for box in item_data['bboxes']]),
-            'labels': torch.Tensor(item_data['class_labels']).long(),
-            'file_name': self.available_files[item]
+        image_transformed = self.transform(
+            image=(np.expand_dims(item_data['image'], axis=2)),
+            bboxes=item_data['bboxes'],
+            class_labels=item_data['class_labels'],
+            rad_id=item_data['rad_id'],
+            image_name=self.available_files[item]
+        )
+        image_transformed['image'] = np.transpose(image_transformed['image'], axes=(2,0,1))/255
+        image_transformed['image'] = torch.from_numpy(image_transformed['image']).double()
+
+        labels = torch.Tensor([box[4] for box in image_transformed['bboxes']]).long()
+        if labels.size()[0] == 0:
+            labels = torch.Tensor([14])
+
+        boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).double()
+        if boxes.size()[0] == 0:
+            boxes = torch.Tensor([[0,0,1,1]])
+        return image_transformed['image'], {
+            'boxes': boxes,
+            'labels': labels,
+            'file_name': image_transformed['image_name']
         }
+        # item_data['image'] = np.expand_dims(item_data['image'], axis=2)/255
+        # item_data['image'] = np.transpose(item_data['image'], axes=(2, 0, 1))
+        # item_data['image'] = torch.from_numpy(item_data['image']).float()
+        # return item_data['image'], {
+        #     'boxes': torch.Tensor([box[:4] for box in item_data['bboxes']]),
+        #     'labels': torch.Tensor(item_data['class_labels']).long(),
+        #     'file_name': self.available_files[item]
+        # }
 
 
 class ZeroToOneTransform():

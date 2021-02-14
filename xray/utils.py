@@ -1,5 +1,6 @@
 import datetime
 
+import albumentations as A
 import pandas as pd
 
 
@@ -72,3 +73,14 @@ def time_str(fmt=None):
 
     #     time.strftime(format[, t])
     return datetime.datetime.today().strftime(fmt)
+
+def get_augmentation():
+    return A.Compose(
+        [
+            A.OneOf([A.RandomCrop(400,400), A.CenterCrop(400,400)], p = 0.6),
+            A.OneOf([A.HorizontalFlip(), A.VerticalFlip(), A.ShiftScaleRotate()], p = 0.6)
+
+        ],
+        bbox_params=A.BboxParams(format='pascal_voc'),
+        p = 1
+    )
