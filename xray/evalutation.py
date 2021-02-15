@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from torchvision.models.detection import FasterRCNN, fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
+from tqdm import tqdm
 from xray.coco_eval import VinBigDataEval
 from xray.dataset import XRAYShelveLoad
 from xray.utils import create_true_df, create_eval_df, my_custom_collate
@@ -22,20 +23,25 @@ def get_rcnn(model_path):
     return model
 
 
-def model_eval_forward(model: FasterRCNN, loader: DataLoader, device: str = 'cpu'):
+def model_eval_forward(
+    model: FasterRCNN, loader: DataLoader, device: str = 'cpu', score_threshold = 0.5
+):
     with torch.no_grad():
         model.eval()
         all_results = []
         all_targets = []
 
-        for i, (x_eval, x_target) in enumerate(loader):
+        for i, (x_eval, x_target) in tqdm(enumerate(loader), total=len(loader)):
             x_eval = [x.to(device) for x in x_eval]
             results = model(x_eval)
 
             all_results.extend(results)
             all_targets.extend(x_target)
 
-    return all_results, all_targets
+    index_selected = [results['scores'].data.cpu().numpy() > score_threshold for results in all_results]
+    results_selected = [result[index_selected].data.cpu().numpy() for result in all_results]
+
+    return results_selected, all_targets
 
 
 def calculate_metrics(results, targets):
@@ -45,6 +51,7 @@ def calculate_metrics(results, targets):
     final_evaluation = vinbigeval.evaluate(eval_df)
     return final_evaluation
 
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -52,7 +59,6 @@ if __name__ == '__main__':
     cfg = parser.parse_args()
 
     dataset = XRAYShelveLoad('eval', data_dir='../data/chest_xray', database_dir='../data/chest_xray')
-    dataset.length = 10
 
     eval_loader = DataLoader(
         dataset,

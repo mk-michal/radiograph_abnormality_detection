@@ -1,7 +1,9 @@
 import datetime
+from typing import Dict, List
 
 import albumentations as A
 import pandas as pd
+import torch
 
 
 class Averager:
@@ -66,6 +68,17 @@ def create_true_df(descriptions):
 
     return true_df
 
+def create_submission_df(results: List[Dict[str, torch.Tensor ]], image_ids: List[str]):
+    all_rows = []
+    for image_id, result in zip(image_ids, results):
+        if len(result['boxes']) > 0:
+            all_rows.append({
+                'PredictedString': format_prediction_string(result['labels'], result['boxes'], result['scores']),
+                'image_id': image_id
+            })
+        else:
+            all_rows.append({'PredictedString': '14 1.0 0 0 1 1', 'image_id': image_id})
+    return pd.DataFrame(all_rows)
 
 def time_str(fmt=None):
     if fmt is None:
@@ -84,3 +97,12 @@ def get_augmentation():
         bbox_params=A.BboxParams(format='pascal_voc'),
         p = 1
     )
+
+
+def format_prediction_string(labels, boxes, scores):
+    pred_strings = []
+    for j in zip(labels, scores, boxes):
+        pred_strings.append("{0} {1:.4f} {2} {3} {4} {5}".format(
+            j[0], j[1], j[2][0], j[2][1], j[2][2], j[2][3]))
+
+    return " ".join(pred_strings)

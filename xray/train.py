@@ -13,7 +13,7 @@ from torch.optim import SGD
 
 from xray.dataset import XRAYShelveLoad
 from xray.evalutation import model_eval_forward, calculate_metrics
-from xray.utils import Averager, my_custom_collate, create_eval_df, time_str
+from xray.utils import Averager, my_custom_collate, create_eval_df, create_submission_df, time_str
 
 logging.basicConfig(level=logging.INFO)
 
@@ -138,10 +138,13 @@ def train():
 
     logger.info("===================================================================")
     logger.info("Testing best model on test set")
-    all_results, all_targets = model_eval_forward(model, test_loader, cfg.device)
+    all_results, all_targets = model_eval_forward(
+        model, test_loader, cfg.device, score_threshold=0.5
+    )
 
     final_test_df = create_eval_df(results=all_results, descriptions=all_targets)
 
+    submission_file = create_submission_df(all_results, [i['file_name'] for i in all_targets])
     best_model_path = os.path.join(model_path_folder, 'best_model_rcnn.cfg')
     logger.info(f'Saving best model to {best_model_path}')
     torch.save(best_model.state_dict(), best_model_path)
@@ -150,12 +153,9 @@ def train():
 
     final_results_save_path = os.path.join(model_path_folder, 'final_result_test.csv')
     logger.info(f'Saving final results for tests set into {final_results_save_path}  ')
-    final_test_df.to_csv(final_results_save_path)
+    final_test_df.to_csv(submission_file)
 
 
 
 if __name__ == '__main__':
     train()
-
-
-

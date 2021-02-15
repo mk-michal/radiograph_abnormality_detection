@@ -125,13 +125,13 @@ class XRAYShelveLoad:
             image_name=self.available_files[item]
         )
         image_transformed['image'] = np.transpose(image_transformed['image'], axes=(2,0,1))/255
-        image_transformed['image'] = torch.from_numpy(image_transformed['image']).double()
+        image_transformed['image'] = torch.from_numpy(image_transformed['image']).float()
 
         labels = torch.Tensor([box[4] for box in image_transformed['bboxes']]).long()
         if labels.size()[0] == 0:
-            labels = torch.Tensor([14])
+            labels = torch.Tensor([14]).long()
 
-        boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).double()
+        boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).float()
         if boxes.size()[0] == 0:
             boxes = torch.Tensor([[0,0,1,1]])
         return image_transformed['image'], {
