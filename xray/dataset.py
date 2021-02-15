@@ -4,6 +4,8 @@ import shelve
 
 import xray.utils
 
+import albumentations.pytorch
+import albumentations as A
 import numpy as np
 import pandas as pd
 import pydicom
@@ -88,8 +90,7 @@ class XRAYShelveLoad:
     ):
         if mode not in ['train', 'test', 'eval']:
             raise KeyError('Mode needs to be in [train, test, eval]')
-
-        self.transform = xray.utils.get_augmentation()
+        self.transform = xray.utils.get_augmentation(prob= 0.6 if mode == 'train' else 0)
 
         self.available_files = [
             f.split('.')[0] for f in os.listdir(
