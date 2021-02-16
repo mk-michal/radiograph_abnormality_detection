@@ -39,7 +39,7 @@ def model_eval_forward(
             all_targets.extend(x_target)
 
     index_selected = [results['scores'].data.cpu().numpy() > score_threshold for results in all_results]
-    results_selected = [result[index_selected].data.cpu().numpy() for result in all_results]
+    results_selected = [{r: val[index].data.cpu().numpy() for r, val in result.items()} for result, index in zip(all_results, index_selected)]
 
     return results_selected, all_targets
 
@@ -59,6 +59,7 @@ if __name__ == '__main__':
     cfg = parser.parse_args()
 
     dataset = XRAYShelveLoad('eval', data_dir='../data/chest_xray', database_dir='../data/chest_xray')
+    dataset.length =10
 
     eval_loader = DataLoader(
         dataset,
