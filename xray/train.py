@@ -11,9 +11,9 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import torchvision
 from torch.optim import SGD
 
-from xray.dataset import XRAYShelveLoad
-from xray.evalutation import model_eval_forward, calculate_metrics
-from xray.utils import Averager, my_custom_collate, create_eval_df, create_submission_df, time_str
+import xray.dataset
+import xray.evalutation
+import xray.utils
 
 logging.basicConfig(level=logging.INFO)
 
@@ -21,6 +21,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--data-path', default='../data/chest_xray/', type=str)
 parser.add_argument('--database-path', default='../data/chest_xray/', type=str)
 parser.add_argument('--save-path', default='../data/chest_xray', type=str)
+parser.add_argument('--checkpoint-path', default=None)
 parser.add_argument('--n-workers', default=1, type=int)
 parser.add_argument('-lr', default=0.01, type=float)
 parser.add_argument('--device', default='cpu', type=str)
@@ -31,8 +32,7 @@ parser.add_argument('--log-step', default=20, type=int)
 parser.add_argument('--last-epoch', default=-1, type=int)
 parser.add_argument('--gamma', default=0.02, type=float)
 parser.add_argument('--step-size', default=10, type=int)
-
-
+parser.add_argument('--weight-decay', default=0.005, type=float)
 
 
 
@@ -42,59 +42,66 @@ def train():
     logFormatter = logging.Formatter(
         "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s"
     )
-    model_path_folder = os.path.join(cfg.save_path, time_str())
+    model_path_folder = os.path.join(cfg.save_path, xray.utils.time_str())
     os.makedirs(model_path_folder, exist_ok=True)
     fileHandler = logging.FileHandler(os.path.join(model_path_folder, 'model_log.log'))
     fileHandler.setFormatter(logFormatter)
     logger.addHandler(fileHandler)
 
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
-        pretrained=True,
-        trainable_backbone_layers=2,
-        # num_classes=15,
-        min_size=400,
-        max_size=400,
-    )
+    if cfg.checkpoint_path:
+        model = xray.evalutation.get_rcnn(cfg.checkpoint_path)
+        model.to(cfg.device)
 
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)
-    model.to(cfg.device)
+
+    else:
+        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
+            pretrained=True,
+            trainable_backbone_layers=2,
+            # num_classes=15,
+            min_size=400,
+            max_size=400,
+        )
+
+        in_features = model.roi_heads.box_predictor.cls_score.in_features
+
+        model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)
+        model.to(cfg.device)
 
     params = [p for p in model.parameters() if p.requires_grad]
 
-    optimizer = SGD(params, weight_decay=0.005, lr=cfg.lr, momentum=cfg.momentum)
+    optimizer = SGD(params, weight_decay=cfg.weight_decay, lr=cfg.lr, momentum=cfg.momentum)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         optimizer=optimizer, gamma=cfg.gamma, step_size=cfg.step_size, last_epoch=cfg.last_epoch
     )
 
     train_loader = DataLoader(
-        XRAYShelveLoad('train', data_dir=cfg.data_path, database_dir=cfg.database_path),
+        xray.dataset.XRAYShelveLoad('train', data_dir=cfg.data_path, database_dir=cfg.database_path),
         shuffle=True,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
-        collate_fn=my_custom_collate
+        collate_fn=xray.utils.my_custom_collate
     )
 
     eval_loader = DataLoader(
-        XRAYShelveLoad('eval', data_dir=cfg.data_path, database_dir=cfg.database_path),
+        xray.dataset.XRAYShelveLoad('eval', data_dir=cfg.data_path, database_dir=cfg.database_path),
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
-        collate_fn=my_custom_collate
+        collate_fn=xray.utils.my_custom_collate
     )
 
     test_loader = DataLoader(
-        XRAYShelveLoad('test', data_dir=cfg.data_path, database_dir=cfg.database_path),
+        xray.dataset.XRAYShelveLoad('test', data_dir=cfg.data_path, database_dir=cfg.database_path),
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
-        collate_fn=my_custom_collate
+        collate_fn=xray.utils.my_custom_collate
     )
 
     logger.info('Starting training')
     best_eval_ma = 0
 
-    average_loss = Averager()
+    average_loss = xray.utils.Averager()
     for epoch in range(cfg.n_epochs):
         average_loss.reset()
         model.train()
@@ -115,7 +122,7 @@ def train():
             average_loss.send(total_loss.item())
             if (step + 1) % cfg.log_step == 0 or (step + 1) == len(train_loader):
                 logger.info(
-                    f'{time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
+                    f'{xray.utils.time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
                     f'train_loss:{average_loss.value:.4f}'
                 )
         lr_scheduler.step()
@@ -125,8 +132,8 @@ def train():
         logger.info('==========================================')
         logger.info(f'Testing results after epoch {epoch + 1} on eval_loader {epoch + 1}')
 
-        all_results, all_targets = model_eval_forward(model, eval_loader, cfg.device)
-        final_evaluation = calculate_metrics(all_results, all_targets)
+        all_results, all_targets = xray.evalutation.model_eval_forward(model, eval_loader, cfg.device)
+        final_evaluation = xray.evalutation.calculate_metrics(all_results, all_targets)
         logger.info(f'Ma metric on evaluation dataset after epoch {epoch} is with '
                     f'IoU 0.4 is {final_evaluation.stats[0]}')
 
@@ -138,13 +145,13 @@ def train():
 
     logger.info("===================================================================")
     logger.info("Testing best model on test set")
-    all_results, all_targets = model_eval_forward(
+    all_results, all_targets = xray.evalutation.model_eval_forward(
         model, test_loader, cfg.device, score_threshold=0.5
     )
 
-    final_test_df = create_eval_df(results=all_results, descriptions=all_targets)
+    final_test_df = xray.evalutation.create_eval_df(results=all_results, descriptions=all_targets)
 
-    submission_file = create_submission_df(all_results, [i['file_name'] for i in all_targets])
+    submission_file = xray.utils.create_submission_df(all_results, [i['file_name'] for i in all_targets])
     best_model_path = os.path.join(model_path_folder, 'best_model_rcnn.cfg')
     logger.info(f'Saving best model to {best_model_path}')
     torch.save(best_model.state_dict(), best_model_path)
