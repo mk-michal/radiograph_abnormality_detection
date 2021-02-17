@@ -15,6 +15,9 @@ import xray.dataset
 import xray.evalutation
 import xray.utils
 
+torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.enabled = True
+
 logging.basicConfig(level=logging.INFO)
 
 parser = argparse.ArgumentParser()
