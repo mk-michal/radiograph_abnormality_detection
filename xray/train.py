@@ -155,7 +155,7 @@ def train():
         model, test_loader, cfg.device, score_threshold=0.5
     )
 
-    final_test_df = xray.evalutation.create_eval_df(results=all_results, descriptions=all_targets)
+    final_test_df = xray.evalutation.create_eval_df(results=all_results, description=all_targets)
 
     submission_file = xray.utils.create_submission_df(all_results, [i['file_name'] for i in all_targets])
     best_model_path = os.path.join(model_path_folder, 'best_model_rcnn.cfg')
