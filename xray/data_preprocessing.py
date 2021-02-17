@@ -28,8 +28,17 @@ def read_xray(path, voi_lut=True, fix_monochrome=True):
             data = dicom.pixel_array
 
     # depending on this value, X-ray may look inverted - fix that:
-    if fix_monochrome and dicom.PhotometricInterpretation == "MONOCHROME1":
+    if "PhotometricInterpretation" in dicom and dicom.PhotometricInterpretation == "MONOCHROME1":
         data = np.amax(data) - data
+
+    intercept = dicom.RescaleIntercept if "RescaleIntercept" in dicom else 0.0
+    slope = dicom.RescaleSlope if "RescaleSlope" in dicom else 1.0
+
+    if slope != 1:
+        data = slope * data.astype(np.float64)
+        data = data.astype(np.int16)
+
+    data += np.int16(intercept)
 
     data = data - np.min(data)
     data = data / np.max(data)

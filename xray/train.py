@@ -79,7 +79,8 @@ def train():
         shuffle=True,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
-        collate_fn=xray.utils.my_custom_collate
+        collate_fn=xray.utils.my_custom_collate,
+        pin_memory=True
     )
 
     eval_loader = DataLoader(
@@ -87,7 +88,8 @@ def train():
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
-        collate_fn=xray.utils.my_custom_collate
+        collate_fn=xray.utils.my_custom_collate,
+        pin_memory=True
     )
 
     test_loader = DataLoader(
@@ -95,7 +97,8 @@ def train():
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
-        collate_fn=xray.utils.my_custom_collate
+        collate_fn=xray.utils.my_custom_collate,
+        pin_memory=True
     )
 
     logger.info('Starting training')
