@@ -2,6 +2,7 @@ import datetime
 from typing import Dict, List
 
 import albumentations as A
+import numpy as np
 import pandas as pd
 import torch
 
@@ -32,18 +33,20 @@ def my_custom_collate(x):
     return list(zip(*x))
 
 
-def create_eval_df(results, descriptions):
+def create_eval_df(results: List[Dict[str, np.array]], description: List[Dict[str, np.array]]):
 
     image_ids = []
     string_scores = []
-    for result, desc in zip(results, descriptions):
-        string_bboxes = list(map(
-            lambda x: ' '.join([str(i.item()) for i in  x.long()]) if len(x.size()) !=0 else '14 1 0 0 1 1',
-            result['boxes']
-        ))
-        for bbox, score, pred_class in zip(string_bboxes, result['scores'], result['labels']):
-            image_ids.append(desc['file_name'])
-            string_scores.append(f'{pred_class.item()} {score.item()} {bbox}')
+    for result, desc in zip(results, description):
+        for bbox, score, pred_class in zip(result['boxes'], result['scores'], result['labels']):
+            if int(pred_class) == 14:
+                string_scores.append(f'14 1.0 0 0 1 1')
+                image_ids.append(desc['file_name'])
+            else:
+                bboxes_str = ' '.join(list(map(str, bbox.astype(int))))
+
+                string_scores.append(f'{int(pred_class)} {score} {bboxes_str}')
+                image_ids.append(desc['file_name'])
 
     eval_df = pd.DataFrame({'image_id': image_ids, 'PredictionString': string_scores})
 
@@ -68,6 +71,7 @@ def create_true_df(descriptions):
 
     return true_df
 
+
 def create_submission_df(results: List[Dict[str, torch.Tensor ]], image_ids: List[str]):
     all_rows = []
     for image_id, result in zip(image_ids, results):
@@ -79,6 +83,7 @@ def create_submission_df(results: List[Dict[str, torch.Tensor ]], image_ids: Lis
         else:
             all_rows.append({'PredictedString': '14 1.0 0 0 1 1', 'image_id': image_id})
     return pd.DataFrame(all_rows)
+
 
 def time_str(fmt=None):
     if fmt is None:

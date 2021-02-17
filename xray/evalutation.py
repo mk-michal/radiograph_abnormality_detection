@@ -13,12 +13,12 @@ from xray.utils import create_true_df, create_eval_df, my_custom_collate
 best_model_path = '../data/chest_xray/2021-02-09_17:46:42/rcnn_checkpoint.pth'
 
 
-def get_rcnn(model_path):
+def get_rcnn(model_path, device: str = 'cpu'):
     model = fasterrcnn_resnet50_fpn(pretrained_backbone=False)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, 15)
 
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, map_location=torch.device(device)))
 
     return model
 
@@ -46,7 +46,7 @@ def model_eval_forward(
 
 def calculate_metrics(results, targets):
     true_df = create_true_df(descriptions=targets)
-    eval_df = create_eval_df(results=results, descriptions=targets)
+    eval_df = create_eval_df(results=results, description=targets)
     vinbigeval = VinBigDataEval(true_df)
     final_evaluation = vinbigeval.evaluate(eval_df)
     return final_evaluation
@@ -55,12 +55,11 @@ def calculate_metrics(results, targets):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model-path', default = '../data/chest_xray/2021-02-09_17:46:42/rcnn_checkpoint.pth')
+    parser.add_argument('--model-path', default = '../data/xray-kaggle/best_model_rcnn.cfg')
     cfg = parser.parse_args()
 
-    dataset = XRAYShelveLoad('eval', data_dir='../data/chest_xray', database_dir='../data/chest_xray')
-    dataset.length =10
-
+    dataset = XRAYShelveLoad('train', data_dir='../data/chest_xray', database_dir='../data/chest_xray')
+    dataset.length = 10
     eval_loader = DataLoader(
         dataset,
         shuffle=False,
@@ -71,6 +70,7 @@ if __name__ == '__main__':
 
     model = get_rcnn(cfg.model_path)
     results, targets = model_eval_forward(model, eval_loader)
+    df = create_eval_df(results, targets)
     final_metric = calculate_metrics(results, targets)
 
 
