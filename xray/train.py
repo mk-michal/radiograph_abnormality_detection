@@ -131,14 +131,14 @@ def train(model_path_folder, cfg, logger):
                 logger.info(f'New best model after epoch {epoch} with ma {final_evaluation.stats[0]}')
                 logger.info('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'*2)
                 best_model = copy.deepcopy(model)
-                logger.info(f'Saving best model to {best_model_path}')
                 best_model_path = os.path.join(model_path_folder, 'best_model_rcnn.cfg')
+                logger.info(f'Saving best model to {best_model_path}')
                 torch.save(best_model.state_dict(), best_model_path)
 
         return best_model
     except Exception as e:
         logger.exception(f'Training failed with exception {e}')
-        logger.error(traceback.print_exc())
+        traceback.print_exc()
         return best_model
 
 
