@@ -1,4 +1,6 @@
 import datetime
+import logging
+import os
 from typing import Dict, List
 
 import albumentations as A
@@ -111,3 +113,24 @@ def format_prediction_string(labels, boxes, scores):
             j[0], j[1], j[2][0], j[2][1], j[2][2], j[2][3]))
 
     return " ".join(pred_strings)
+
+
+def define_logger(name: str, folder: str = None, filehandler: bool = True, streamhandler: bool = True):
+    logger = logging.getLogger(name)
+    logFormatter = logging.Formatter(
+        "%(asctime)s %(name)s [%(levelname)-5.5s]  %(message)s"
+    )
+
+    if filehandler:
+        if folder is None:
+            raise ValueError('Folder needs to be set if filehandler is enabled')
+        fileHandler = logging.FileHandler(os.path.join(folder, 'model_log.log'))
+        fileHandler.setFormatter(logFormatter)
+        logger.addHandler(fileHandler)
+
+    if streamhandler:
+        streamhandler = logging.StreamHandler()
+        streamhandler.setFormatter(logFormatter)
+        logger.addHandler(streamhandler)
+
+    return logger
