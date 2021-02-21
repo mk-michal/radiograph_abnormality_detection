@@ -1,12 +1,15 @@
 import datetime
 import logging
 import os
+import shelve
 from typing import Dict, List
 
 import albumentations as A
 import numpy as np
 import pandas as pd
+import pydicom
 import torch
+import torchvision
 
 
 class Averager:
@@ -105,6 +108,96 @@ def get_augmentation(prob = 0.6):
         p = 1
     )
 
+
+
+def filter_radiologist_findings(boxes, labels):
+    boxes_index = set(list(range(len(boxes))))
+    final_boxes = []
+    final_labels = []
+    while boxes_index:
+        print(boxes_index)
+        index = boxes_index.pop()
+        label = labels[index].item()
+        box = boxes[index]
+        boxes_sample = boxes[labels == label]
+        boxes_index = [i for i, l in enumerate(labels) if l == label]
+        boxes_iou = (torchvision.ops.box_iou(box.unsqueeze(0), boxes_sample) > 0.4).squeeze(0)
+        if boxes_iou.sum().item() > 1:
+            boxes_sample_iou_high = boxes_sample[boxes_iou]
+            print(boxes_iou)
+            index_iou_high = boxes_index[boxes_iou]
+            final_box = torch.mean(boxes_sample_iou_high, axis = 1)
+            final_boxes.append(final_box)
+            final_labels.append(label)
+            for i in index_iou_high:
+                boxes_index.remove(i)
+    return final_boxes, final_labels
+
+def do_nms(string_row):
+    example = string_row.split(' ')
+    example_edited = []
+    scores = []
+    classes = []
+    for index in range(int(len(example) / 6)):
+        scores.append(float(example[index * 6 + 1]))
+        classes.append(int(float(example[index * 6])))
+
+        bbox = list(map(float, example[(index * 6 + 2):(index * 6 + 6)]))
+        example_edited.append(bbox)
+    final_example = torch.tensor(example_edited, dtype=torch.float32, device='cpu')
+    index_after_nms = torchvision.ops.nms(final_example, torch.tensor(scores).float(), 0.4)
+
+    scores_updated = torch.tensor(scores)[index_after_nms]
+    classes_updated = torch.tensor(classes)[index_after_nms]
+    final_example_updated = final_example[index_after_nms]
+    list_of_lists = torch.cat(
+        [classes_updated.unsqueeze(dim=1), scores_updated.unsqueeze(dim=1), final_example_updated],
+        axis=1).tolist()
+    for l in list_of_lists:
+        l[0] = int(l[0])
+
+    final_output = ' '.join([str(element) for puf in list_of_lists for element in puf])
+    return final_output
+
+
+def rescale_to_original_size(submission_file, output_file):
+
+    database = shelve.open(
+       '../input/data-preprocessing/test_data.db' , flag='r', writeback=False
+    )
+
+    def resize_bbox(bbox_coord, curr_size, orig_size):
+        x0_new = float(bbox_coord[0]) * orig_size[0]/curr_size[0]
+        x1_new = float(bbox_coord[2]) * orig_size[0]/curr_size[0]
+        y0_new = float(bbox_coord[1]) * orig_size[1]/curr_size[1]
+        y1_new = float(bbox_coord[3]) * orig_size[1]/curr_size[1]
+        return [x0_new, y0_new, x1_new, y1_new]
+
+    new_predicted_strings = []
+    for i, (string, image_id) in enumerate(zip(output_file.PredictedString, output_file.image_id)):
+        string_list = string.split(' ')
+        orig_file = pydicom.read_file(os.path.join('../input/vinbigdata-chest-xray-abnormalities-detection', 'test', image_id + '.dicom'))
+
+        new_string = []
+        for index in range(int(len(string_list) / 6)):
+            current_string = string_list[index * 6: index * 6 + 6]
+            if int(current_string[0]) != 14:
+                new_bbox_coord = resize_bbox(
+                    bbox_coord=current_string[2:],
+                    curr_size = database[image_id]['image'].shape,
+                    orig_size = orig_file.pixel_array.shape
+                )
+
+                new_bbox_coord = [str(current_string[0]), str(current_string[1])] + list(map(str, new_bbox_coord))
+                new_string.extend(new_bbox_coord)
+            else:
+                new_string.extend(['14','1', '0','0','1','1'])
+        new_predicted_strings.append(' '.join(new_string))
+        if (i+1) % 10 == 0:
+            print(f'Episode {i}', flush = True)
+
+    new_final_submission = pd.DataFrame({'PredictionString': new_predicted_strings, 'image_id': output_file.image_id[:len(new_predicted_strings)]})
+    new_final_submission.to_csv('new_submission.csv', index=False, header=True)
 
 def format_prediction_string(labels, boxes, scores):
     pred_strings = []
