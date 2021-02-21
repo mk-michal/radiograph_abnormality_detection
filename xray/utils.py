@@ -1,8 +1,9 @@
+import copy
 import datetime
 import logging
 import os
 import shelve
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import albumentations as A
 import numpy as np
@@ -108,30 +109,57 @@ def get_augmentation(prob = 0.6):
         p = 1
     )
 
-
-
-def filter_radiologist_findings(boxes, labels):
-    boxes_index = set(list(range(len(boxes))))
+def filter_radiologist_findings(
+    boxes: torch.Tensor,
+    labels: torch.Tensor,
+    iou_threshold: float = 0.4
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    boxes_index_set = set(list(range(len(boxes))))
     final_boxes = []
     final_labels = []
-    while boxes_index:
-        print(boxes_index)
-        index = boxes_index.pop()
+    while boxes_index_set:
+        index = boxes_index_set.pop()
         label = labels[index].item()
         box = boxes[index]
-        boxes_sample = boxes[labels == label]
-        boxes_index = [i for i, l in enumerate(labels) if l == label]
-        boxes_iou = (torchvision.ops.box_iou(box.unsqueeze(0), boxes_sample) > 0.4).squeeze(0)
-        if boxes_iou.sum().item() > 1:
+        labels_subset = labels[list(boxes_index_set)] == label
+        boxes_sample = boxes[list(boxes_index_set)][labels_subset]
+        boxes_index = torch.Tensor([i for i, l in enumerate(labels) if l == label and i in boxes_index_set])
+
+        boxes_iou = (torchvision.ops.box_iou(box.unsqueeze(0), boxes_sample) > iou_threshold).squeeze(0)
+        if boxes_iou.sum().item() >= 1:
             boxes_sample_iou_high = boxes_sample[boxes_iou]
-            print(boxes_iou)
             index_iou_high = boxes_index[boxes_iou]
-            final_box = torch.mean(boxes_sample_iou_high, axis = 1)
+            final_box = torch.mean(boxes_sample_iou_high, axis = 0)
             final_boxes.append(final_box)
             final_labels.append(label)
             for i in index_iou_high:
-                boxes_index.remove(i)
-    return final_boxes, final_labels
+                if i.item() in boxes_index_set:
+                    boxes_index_set.remove(i.item())
+    if len(final_boxes) > 0:
+        return torch.stack(final_boxes), torch.tensor(final_labels, dtype=torch.long)
+    else:
+        return torch.Tensor([[]]), torch.Tensor([])
+
+def transform_no_findings(results):
+    new_dict = copy.deepcopy(results)
+    for index in range(len(results)):
+        for box_n, (box, label) in enumerate(
+            zip(results[index]['boxes'], results[index]['labels'])):
+            if label == 14:
+                new_dict[index]['boxes'][box_n] = torch.tensor([0, 0, 1, 1])
+    return new_dict
+
+
+def no_findings_to_ones(results: List[Dict[str, np.array]]):
+    new_dict = copy.deepcopy(results)
+    for index in range(len(results)):
+        if results[index]['boxes'].size == 0:
+            new_dict[index]['boxes'] = np.array([[0, 0, 1, 1]])
+            new_dict[index]['labels'] = np.array([14])
+            new_dict[index]['scores'] = np.array([1.0])
+
+    return new_dict
+
 
 def do_nms(string_row):
     example = string_row.split(' ')

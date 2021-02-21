@@ -4,8 +4,6 @@ import shelve
 
 import xray.utils
 
-import albumentations.pytorch
-import albumentations as A
 import numpy as np
 import pandas as pd
 import pydicom
@@ -60,6 +58,8 @@ class XRayDataset:
         bboxes_resized = torch.Tensor(
             list(map(lambda x: resize_bbox(x, image.pixel_array.shape, (400,400)), bboxes))
         )
+        bboxes_resized, labels = xray.utils.filter_radiologist_findings(bboxes_resized, labels)
+
         target = {
             'boxes': bboxes_resized,
             'labels': labels.long(),
@@ -135,20 +135,22 @@ class XRAYShelveLoad:
         boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).float()
         if boxes.size()[0] == 0:
             boxes = torch.Tensor([[0,0,1,1]])
+
+        boxes, labels = xray.utils.filter_radiologist_findings(boxes, labels)
+        if len(labels) == 0:
+            # TODO: do something more clever. This happens when radiologist cant decide on either
+            #  class in the image
+            boxes = torch.Tensor([[0,0,1,1]])
+            labels = torch.Tensor([14])
+        else:
+            for i, label in enumerate(labels):
+                if label.item() == 14:
+                    boxes[i] = torch.Tensor([0,0,1,1])
         return image_transformed['image'], {
             'boxes': boxes,
             'labels': labels,
             'file_name': image_transformed['image_name']
         }
-        # item_data['image'] = np.expand_dims(item_data['image'], axis=2)/255
-        # item_data['image'] = np.transpose(item_data['image'], axes=(2, 0, 1))
-        # item_data['image'] = torch.from_numpy(item_data['image']).float()
-        # return item_data['image'], {
-        #     'boxes': torch.Tensor([box[:4] for box in item_data['bboxes']]),
-        #     'labels': torch.Tensor(item_data['class_labels']).long(),
-        #     'file_name': self.available_files[item]
-        # }
-
 
 class ZeroToOneTransform():
     def __call__(self, image):
