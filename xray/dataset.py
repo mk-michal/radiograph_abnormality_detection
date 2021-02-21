@@ -130,7 +130,7 @@ class XRAYShelveLoad:
 
         labels = torch.Tensor([box[4] for box in image_transformed['bboxes']]).long()
         if labels.size()[0] == 0:
-            labels = torch.Tensor([14]).long()
+            labels = torch.tensor([14], dtype=torch.long)
 
         boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).float()
         if boxes.size()[0] == 0:
@@ -141,7 +141,7 @@ class XRAYShelveLoad:
             # TODO: do something more clever. This happens when radiologist cant decide on either
             #  class in the image
             boxes = torch.Tensor([[0,0,1,1]])
-            labels = torch.Tensor([14])
+            labels = torch.tensor([14], dtype=torch.long)
         else:
             for i, label in enumerate(labels):
                 if label.item() == 14:
