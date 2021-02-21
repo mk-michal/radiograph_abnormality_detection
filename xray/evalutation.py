@@ -26,6 +26,7 @@ def get_rcnn(model_path, device: str = 'cpu'):
 def model_eval_forward(
     model: FasterRCNN, loader: DataLoader, device: str = 'cpu', score_threshold = 0.5
 ):
+    model = model.to(device)
     with torch.no_grad():
         model.eval()
         all_results = []

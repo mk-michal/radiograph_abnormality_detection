@@ -85,7 +85,7 @@ def plot_image_with_bboxes(image: np.array, bboxes: List[np.array], labels: List
     plt.show()
 
 
-@lru_cache
+@lru_cache()
 def get_database(databaset: str = 'train', database_dir: str = '../data/chest_xray/'):
     assert databaset in ['train', 'test']
     db = shelve.open(
