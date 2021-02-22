@@ -83,11 +83,11 @@ def create_submission_df(results: List[Dict[str, torch.Tensor ]], image_ids: Lis
     for image_id, result in zip(image_ids, results):
         if len(result['boxes']) > 0:
             all_rows.append({
-                'PredictedString': format_prediction_string(result['labels'], result['boxes'], result['scores']),
+                'PredictionString': format_prediction_string(result['labels'], result['boxes'], result['scores']),
                 'image_id': image_id
             })
         else:
-            all_rows.append({'PredictedString': '14 1.0 0 0 1 1', 'image_id': image_id})
+            all_rows.append({'PredictionString': '14 1.0 0 0 1 1', 'image_id': image_id})
     return pd.DataFrame(all_rows)
 
 
@@ -202,7 +202,7 @@ def rescale_to_original_size(output_file):
         return [x0_new, y0_new, x1_new, y1_new]
 
     new_predicted_strings = []
-    for i, (string, image_id) in enumerate(zip(output_file.PredictedString, output_file.image_id)):
+    for i, (string, image_id) in enumerate(zip(output_file.PredictionString, output_file.image_id)):
         string_list = string.split(' ')
         orig_file = pydicom.read_file(os.path.join('../input/vinbigdata-chest-xray-abnormalities-detection', 'test', image_id + '.dicom'))
 
