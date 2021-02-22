@@ -6,6 +6,8 @@ from torchvision.models.detection import FasterRCNN, fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 from tqdm import tqdm
+
+import xray
 from xray.coco_eval import VinBigDataEval
 from xray.dataset import XRAYShelveLoad
 from xray.utils import create_true_df, create_eval_df, my_custom_collate
@@ -47,7 +49,11 @@ def model_eval_forward(
 
 def calculate_metrics(results, targets):
     true_df = create_true_df(descriptions=targets)
+    results = xray.utils.transform_no_findings(results)
+    results = xray.utils.no_findings_to_ones(results)
+
     eval_df = create_eval_df(results=results, description=targets)
+    eval_df['PredictionString'] = eval_df.PredictionString.apply(xray.utils.do_nms)
     vinbigeval = VinBigDataEval(true_df)
     final_evaluation = vinbigeval.evaluate(eval_df)
     return final_evaluation

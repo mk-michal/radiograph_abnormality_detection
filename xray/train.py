@@ -143,8 +143,6 @@ def train(model_path_folder, cfg, logger):
 
 
 def create_test_submission(model, model_path_folder, cfg, logger):
-
-
     test_loader = DataLoader(
         xray.dataset.XRAYShelveLoad('test', data_dir=cfg.data_path, database_dir=cfg.database_path),
         shuffle=False,
@@ -160,15 +158,18 @@ def create_test_submission(model, model_path_folder, cfg, logger):
         model, test_loader, cfg.device, score_threshold=0.5
     )
     logger.info("Creating submission file for test data ...")
-    submission_file = xray.utils.create_submission_df(all_results, [i['file_name'] for i in all_targets])
 
+    all_results = xray.utils.no_findings_to_ones(all_results)
+    submission_file = xray.utils.create_submission_df(all_results, [i['file_name'] for i in all_targets])
+    submission_file = xray.utils.rescale_to_original_size(submission_file)
+    submission_file['PredictionString'] = submission_file.PredictionString.apply(xray.utils.do_nms)
 
     with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:
         json.dump(cfg.__dict__, j)
 
-    final_results_save_path = os.path.join(model_path_folder, 'final_result_test.csv')
+    final_results_save_path = os.path.join(model_path_folder, 'final_submission.csv')
     logger.info(f'Saving final results for tests set into {final_results_save_path}  ')
-    submission_file.to_csv(final_results_save_path)
+    submission_file.to_csv(final_results_save_path, header=True, index=False)
 
 
 
