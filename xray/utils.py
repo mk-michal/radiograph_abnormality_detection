@@ -188,7 +188,7 @@ def do_nms(string_row):
     return final_output
 
 
-def rescale_to_original_size(submission_file, output_file):
+def rescale_to_original_size(output_file):
 
     database = shelve.open(
        '../input/data-preprocessing/test_data.db' , flag='r', writeback=False
@@ -224,8 +224,7 @@ def rescale_to_original_size(submission_file, output_file):
         if (i+1) % 10 == 0:
             print(f'Episode {i}', flush = True)
 
-    new_final_submission = pd.DataFrame({'PredictionString': new_predicted_strings, 'image_id': output_file.image_id[:len(new_predicted_strings)]})
-    new_final_submission.to_csv('new_submission.csv', index=False, header=True)
+    return pd.DataFrame({'PredictionString': new_predicted_strings, 'image_id': output_file.image_id})
 
 def format_prediction_string(labels, boxes, scores):
     pred_strings = []
