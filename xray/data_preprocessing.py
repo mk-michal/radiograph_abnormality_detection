@@ -49,12 +49,12 @@ def read_xray(path, voi_lut=True, fix_monochrome=True):
 
 
 # This function will read a .dicom file, turn the smallest side to 600 pixels, and then save the additional annotations together with the image into a dictionary
-def get_and_save(x, directory: str, mode: str = 'train'):
+def get_and_save(x, directory: str, mode: str = 'train', max_size: int=1024):
     idx = x[0]
     image_id = x[1]
 
     transform = albumentations.Compose(
-        [albumentations.SmallestMaxSize(max_size=600, always_apply=True)],
+        [albumentations.SmallestMaxSize(max_size=max_size, always_apply=True)],
         bbox_params=albumentations.BboxParams(format='pascal_voc')
     )
     img = read_xray(path=os.path.join(directory, mode, image_id + '.dicom'))
