@@ -98,13 +98,14 @@ def time_str(fmt=None):
     #     time.strftime(format[, t])
     return datetime.datetime.today().strftime(fmt)
 
-def get_augmentation(prob = 0.6):
+def get_augmentation(prob = 0.8):
     return A.Compose(
-        [
-            A.OneOf([A.RandomCrop(400,400), A.CenterCrop(400,400)], p = prob),
-            A.OneOf([A.HorizontalFlip(), A.VerticalFlip(), A.ShiftScaleRotate()], p = prob)
-
-        ],
+        [A.augmentations.RandomBrightnessContrast(p=prob),
+         A.augmentations.Equalize(p=prob),
+         A.augmentations.RGBShift(p=prob),
+         A.augmentations.Rotate(p=prob),
+         ]
+        ,
         bbox_params=A.BboxParams(format='pascal_voc'),
         p = 1
     )
