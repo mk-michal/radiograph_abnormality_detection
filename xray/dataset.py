@@ -1,6 +1,9 @@
 import logging
 import os
+import re
 import shelve
+
+from PIL import Image
 
 import xray.utils
 
@@ -90,7 +93,7 @@ class XRAYShelveLoad:
     ):
         if mode not in ['train', 'test', 'eval']:
             raise KeyError('Mode needs to be in [train, test, eval]')
-        self.transform = xray.utils.get_augmentation(prob= 0.6 if mode == 'train' else 0)
+        self.transform = xray.utils.get_augmentation(prob= 0.8 if mode == 'train' else 0)
 
         self.available_files = [
             f.split('.')[0] for f in os.listdir(
@@ -147,6 +150,84 @@ class XRAYShelveLoad:
                 if label.item() == 14:
                     boxes[i] = torch.Tensor([0,0,1,1])
         return image_transformed['image'], {
+            'boxes': boxes,
+            'labels': labels,
+            'file_name': image_transformed['image_name']
+        }
+
+
+class VinBigDataset:
+    def __init__(
+        self,
+        mode = 'train',
+        data_dir = '../data/',
+        split = 0.8
+    ):
+        if mode not in ['train', 'test', 'eval']:
+            raise KeyError('Mode needs to be in [train, test, eval]')
+        self.transform = xray.utils.get_augmentation(prob= 0.6 if mode == 'train' else 0)
+        self.data_directory = os.path.join(data_dir, 'test' if mode == 'test' else 'train')
+        self.available_files = [
+            f.split('.')[0] for f in os.listdir(self.data_directory) if f.endswith('png')
+        ]
+        self.mode = mode
+
+        if mode == 'train':
+            self.available_files = self.available_files[: int(len(self.available_files) * split)]
+        elif mode == 'eval':
+            self.available_files = self.available_files[int(len(self.available_files) * split):]
+
+        self.length = len(self.available_files)
+        if self.mode != 'test':
+            self.data_desc = pd.read_csv(os.path.join(data_dir, 'train.csv'))
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, item):
+        image = Image.open(os.path.join(self.data_directory, self.available_files[item]) + '.png')
+        if self.mode != 'test':
+            image_data_desc = self.data_desc.loc[
+                self.data_desc['image_id'] == self.available_files[item]
+            ]
+            class_labels = image_data_desc.class_id.values
+            bboxes = [list(row) for _, row in image_data_desc[['x_min', 'y_min', 'x_max', 'y_max', 'class_id']].fillna(
+                {'x_min': 0, 'y_min': 0, 'x_max': 1, 'y_max': 1}).astype(np.int16).iterrows()]
+
+            rad_id = image_data_desc.rad_id
+        else:
+            bboxes = []
+            class_labels = []
+            rad_id = []
+
+        image_transformed = self.transform(
+            image=np.stack([np.array(image), np.array(image), np.array(image)]),
+            bboxes=bboxes,
+            class_labels=class_labels,
+            rad_id=rad_id,
+            image_name=self.available_files[item]
+        )
+        image_transformed['image'] = torch.tensor(image_transformed['image'], dtype=torch.float)/255
+
+        labels = torch.Tensor([box[4] for box in image_transformed['bboxes']]).long()
+        if labels.size()[0] == 0:
+            labels = torch.tensor([14], dtype=torch.long)
+
+        boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).float()
+        if boxes.size()[0] == 0:
+            boxes = torch.Tensor([[0,0,1,1]])
+
+        boxes, labels = xray.utils.filter_radiologist_findings(boxes, labels)
+        if len(labels) == 0:
+            # TODO: do something more clever. This happens when radiologist cant decide on either
+            #  class in the image
+            boxes = torch.Tensor([[0,0,1,1]])
+            labels = torch.tensor([14], dtype=torch.long)
+        else:
+            for i, label in enumerate(labels):
+                if label.item() == 14:
+                    boxes[i] = torch.Tensor([0,0,1,1])
+        return image_transformed['image'].float(), {
             'boxes': boxes,
             'labels': labels,
             'file_name': image_transformed['image_name']

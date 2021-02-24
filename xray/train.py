@@ -68,7 +68,7 @@ def train(model_path_folder, cfg, logger):
     )
 
     train_loader = DataLoader(
-        xray.dataset.XRAYShelveLoad('train', data_dir=cfg.data_path, database_dir=cfg.database_path),
+        xray.dataset.VinBigDataset('train', data_dir=cfg.data_path),
         shuffle=True,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
@@ -77,7 +77,7 @@ def train(model_path_folder, cfg, logger):
     )
 
     eval_loader = DataLoader(
-        xray.dataset.XRAYShelveLoad('eval', data_dir=cfg.data_path, database_dir=cfg.database_path),
+        xray.dataset.VinBigDataset('eval', data_dir=cfg.data_path),
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
@@ -144,7 +144,7 @@ def train(model_path_folder, cfg, logger):
 
 def create_test_submission(model, model_path_folder, cfg, logger):
     test_loader = DataLoader(
-        xray.dataset.XRAYShelveLoad('test', data_dir=cfg.data_path, database_dir=cfg.database_path),
+        xray.dataset.VinBigDataset('test', data_dir=cfg.data_path),
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
