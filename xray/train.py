@@ -51,8 +51,8 @@ def train(model_path_folder, cfg, logger):
             pretrained=True,
             trainable_backbone_layers=2,
             # num_classes=15,
-            min_size=400,
-            max_size=400,
+            min_size=1024,
+            max_size=1024,
         )
 
         in_features = model.roi_heads.box_predictor.cls_score.in_features
