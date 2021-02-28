@@ -67,7 +67,7 @@ def create_true_df(descriptions):
 
     for desc in descriptions:
         bbox_df_true = pd.DataFrame(
-            desc['boxes'].numpy(), columns=['x_min', 'y_min', 'x_max', 'y_max']
+            desc['boxes'], columns=['x_min', 'y_min', 'x_max', 'y_max']
         )
 
         bbox_df_true['class_id'] = desc['labels']
