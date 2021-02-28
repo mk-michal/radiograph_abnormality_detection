@@ -29,8 +29,8 @@ def model_eval_forward(
     model: FasterRCNN, loader: DataLoader, device: str = 'cpu', score_threshold = 0.5
 ):
     model = model.to(device)
+    model.eval()
     with torch.no_grad():
-        model.eval()
         all_results = []
         all_targets = []
 
@@ -38,8 +38,13 @@ def model_eval_forward(
             x_eval = [x.to(device) for x in x_eval]
             results = model(x_eval)
 
+            for target in x_target:
+                all_targets.append({
+                    'boxes': target['boxes'].tolist(),
+                    'labels': target['labels'].tolist(),
+                    'file_name': target['file_name']
+                })
             all_results.extend(results)
-            all_targets.extend(x_target)
 
     index_selected = [results['scores'].data.cpu().numpy() > score_threshold for results in all_results]
     results_selected = [{r: val[index].data.cpu().numpy() for r, val in result.items()} for result, index in zip(all_results, index_selected)]
