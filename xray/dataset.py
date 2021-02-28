@@ -186,28 +186,34 @@ class VinBigDataset:
 
     def __getitem__(self, item):
         image = Image.open(os.path.join(self.data_directory, self.available_files[item]) + '.png')
+        image_array = np.array(image)
         if self.mode != 'test':
             image_data_desc = self.data_desc.loc[
                 self.data_desc['image_id'] == self.available_files[item]
             ]
             class_labels = image_data_desc.class_id.values
-            bboxes = [list(row) for _, row in image_data_desc[['x_min', 'y_min', 'x_max', 'y_max', 'class_id']].fillna(
-                {'x_min': 0, 'y_min': 0, 'x_max': 1, 'y_max': 1}).astype(np.int16).iterrows()]
+            bboxes = []
+            for _, row in image_data_desc.iterrows():
+                bbox = (row.x_min, row.y_min, row.x_max, row.y_max, row.class_id)
+                if np.isnan(bbox[0]):
+                    bboxes.append([0, 0, 1, 1, 14])
+                else:
+                    bbox_rescaled = xray.utils.resize_bbox(bbox[:4], (row.width, row.height), image_array.shape)
+                    bboxes.append(bbox_rescaled + [bbox[4]])
 
             rad_id = image_data_desc.rad_id
         else:
             bboxes = []
             class_labels = []
             rad_id = []
-
         image_transformed = self.transform(
-            image=np.stack([np.array(image), np.array(image), np.array(image)]),
+            image=np.stack([image_array, image_array, image_array], axis=2),
             bboxes=bboxes,
             class_labels=class_labels,
             rad_id=rad_id,
             image_name=self.available_files[item]
         )
-        image_transformed['image'] = torch.tensor(image_transformed['image'], dtype=torch.float)/255
+        image_transformed['image'] = torch.tensor(image_transformed['image'], dtype=torch.float).permute(2,0,1)/255
 
         labels = torch.Tensor([box[4] for box in image_transformed['bboxes']]).long()
         if labels.size()[0] == 0:

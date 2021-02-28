@@ -188,19 +188,18 @@ def do_nms(string_row):
     final_output = ' '.join([str(element) for puf in list_of_lists for element in puf])
     return final_output
 
+def resize_bbox(bbox_coord, curr_size, orig_size):
+    x0_new = float(bbox_coord[0]) * orig_size[0]/curr_size[0]
+    x1_new = float(bbox_coord[2]) * orig_size[0]/curr_size[0]
+    y0_new = float(bbox_coord[1]) * orig_size[1]/curr_size[1]
+    y1_new = float(bbox_coord[3]) * orig_size[1]/curr_size[1]
+    return [x0_new, y0_new, x1_new, y1_new]
 
 def rescale_to_original_size(output_file):
 
     database = shelve.open(
        '../input/data-preprocessing/test_data.db' , flag='r', writeback=False
     )
-
-    def resize_bbox(bbox_coord, curr_size, orig_size):
-        x0_new = float(bbox_coord[0]) * orig_size[0]/curr_size[0]
-        x1_new = float(bbox_coord[2]) * orig_size[0]/curr_size[0]
-        y0_new = float(bbox_coord[1]) * orig_size[1]/curr_size[1]
-        y1_new = float(bbox_coord[3]) * orig_size[1]/curr_size[1]
-        return [x0_new, y0_new, x1_new, y1_new]
 
     new_predicted_strings = []
     for i, (string, image_id) in enumerate(zip(output_file.PredictionString, output_file.image_id)):

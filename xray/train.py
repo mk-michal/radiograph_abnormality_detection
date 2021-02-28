@@ -22,8 +22,8 @@ torch.backends.cudnn.enabled = True
 logging.basicConfig(level=logging.INFO)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data-path', default='../data/chest_xray/', type=str)
-parser.add_argument('--database-path', default='../data/chest_xray/', type=str)
+parser.add_argument('--data-path', default='../data/chest_xray/vinbigdata/', type=str)
+parser.add_argument('--database-path', default='../data/chest_xray/vinbigdata/', type=str)
 parser.add_argument('--save-path', default='../data/chest_xray', type=str)
 parser.add_argument('--checkpoint-path', default=None)
 parser.add_argument('--n-workers', default=1, type=int)
