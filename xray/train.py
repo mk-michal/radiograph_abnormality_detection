@@ -49,8 +49,6 @@ def train(model_path_folder, cfg, logger):
     else:
         model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
             pretrained=True,
-            trainable_backbone_layers=2,
-            # num_classes=15,
             min_size=1024,
             max_size=1024,
         )
