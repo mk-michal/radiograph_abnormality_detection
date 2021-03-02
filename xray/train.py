@@ -85,7 +85,7 @@ def train(model_path_folder, cfg, logger):
 
     logger.info('Starting training')
     best_eval_ma = 0
-
+    test_number = 1
     average_loss = xray.utils.Averager()
     try:
         for epoch in range(cfg.n_epochs):
@@ -133,6 +133,15 @@ def train(model_path_folder, cfg, logger):
                 logger.info(f'Saving best model to {best_model_path}')
                 torch.save(best_model.state_dict(), best_model_path)
 
+                create_test_submission(
+                    model=best_model,
+                    model_path_folder=model_path_folder,
+                    cfg=cfg,
+                    logger=logger,
+                    test_number=test_number
+                )
+                test_number += 1
+
         return best_model
     except Exception as e:
         logger.exception(f'Training failed with exception {e}')
@@ -140,7 +149,7 @@ def train(model_path_folder, cfg, logger):
         return best_model
 
 
-def create_test_submission(model, model_path_folder, cfg, logger):
+def create_test_submission(model, model_path_folder, cfg, logger, test_number: int = 1):
     test_loader = DataLoader(
         xray.dataset.VinBigDataset('test', data_dir=cfg.data_path),
         shuffle=False,
@@ -165,7 +174,7 @@ def create_test_submission(model, model_path_folder, cfg, logger):
     with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:
         json.dump(cfg.__dict__, j)
 
-    final_results_save_path = os.path.join(model_path_folder, 'final_submission.csv')
+    final_results_save_path = os.path.join(model_path_folder, f'final_submission_{test_number}.csv')
     logger.info(f'Saving final results for tests set into {final_results_save_path}  ')
     submission_file.to_csv(final_results_save_path, header=True, index=False)
 
@@ -179,7 +188,7 @@ if __name__ == '__main__':
     logger = xray.utils.define_logger('Train pipeline', folder=model_path_folder)
 
     model = train(model_path_folder, cfg, logger)
-    create_test_submission(model, model_path_folder, cfg, logger)
+    create_test_submission(model, model_path_folder, cfg, logger, test_number=0)
 
 
 
