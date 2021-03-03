@@ -45,8 +45,8 @@ def create_eval_df(results: List[Dict[str, np.array]], description: List[Dict[st
     string_scores = []
     for result, desc in zip(results, description):
         for bbox, score, pred_class in zip(result['boxes'], result['scores'], result['labels']):
-            if int(pred_class) == 14:
-                string_scores.append(f'14 1.0 0 0 1 1')
+            if int(pred_class) == 0:
+                string_scores.append(f'0 1.0 0 0 1 1')
                 image_ids.append(desc['file_name'])
             else:
                 bboxes_str = ' '.join(list(map(str, bbox.astype(int))))
@@ -59,11 +59,10 @@ def create_eval_df(results: List[Dict[str, np.array]], description: List[Dict[st
     return eval_df
 
 
-def create_true_df(descriptions):
+def create_true_df(descriptions: List[Dict[str, np.array]]):
     true_df = pd.DataFrame(
         columns=['image_id', 'class_name', 'class_id', 'x_min', 'y_min', 'x_max', 'y_max']
     )
-
 
     for desc in descriptions:
         bbox_df_true = pd.DataFrame(
@@ -81,9 +80,10 @@ def create_true_df(descriptions):
 def create_submission_df(results: List[Dict[str, torch.Tensor ]], image_ids: List[str]):
     all_rows = []
     for image_id, result in zip(image_ids, results):
+        labels = [l-1 if int(l) != 0 else 14 for l in result['labels']]
         if len(result['boxes']) > 0:
             all_rows.append({
-                'PredictionString': format_prediction_string(result['labels'], result['boxes'], result['scores']),
+                'PredictionString': format_prediction_string(labels, result['boxes'], result['scores']),
                 'image_id': image_id
             })
         else:
@@ -126,10 +126,11 @@ def filter_radiologist_findings(
         boxes_sample = boxes[list(boxes_index_set)][labels_subset]
         boxes_index = torch.Tensor([i for i, l in enumerate(labels) if l == label and i in boxes_index_set])
 
-        boxes_iou = (torchvision.ops.box_iou(box.unsqueeze(0), boxes_sample) > iou_threshold).squeeze(0)
+        boxes_iou = torchvision.ops.box_iou(box.unsqueeze(0), boxes_sample)
+        boxes_iou_bool = (boxes_iou > iou_threshold).squeeze(0)
         if boxes_iou.sum().item() >= 1:
-            boxes_sample_iou_high = boxes_sample[boxes_iou]
-            index_iou_high = boxes_index[boxes_iou]
+            boxes_sample_iou_high = boxes_sample[boxes_iou_bool]
+            index_iou_high = boxes_index[boxes_iou_bool]
             final_box = torch.mean(boxes_sample_iou_high, axis = 0)
             final_boxes.append(final_box)
             final_labels.append(label)
@@ -188,11 +189,15 @@ def do_nms(string_row):
     final_output = ' '.join([str(element) for puf in list_of_lists for element in puf])
     return final_output
 
-def resize_bbox(bbox_coord, curr_size, orig_size):
-    x0_new = float(bbox_coord[0]) * orig_size[0]/curr_size[0]
-    x1_new = float(bbox_coord[2]) * orig_size[0]/curr_size[0]
-    y0_new = float(bbox_coord[1]) * orig_size[1]/curr_size[1]
-    y1_new = float(bbox_coord[3]) * orig_size[1]/curr_size[1]
+def resize_bbox(
+    bbox_coord:Tuple[float, float, float, float],
+    curr_size: Tuple[int, int],
+    new_size: Tuple[int, int]
+):
+    x0_new = float(bbox_coord[0]) * new_size[0] / curr_size[0]
+    x1_new = float(bbox_coord[2]) * new_size[0] / curr_size[0]
+    y0_new = float(bbox_coord[1]) * new_size[1] / curr_size[1]
+    y1_new = float(bbox_coord[3]) * new_size[1] / curr_size[1]
     return [x0_new, y0_new, x1_new, y1_new]
 
 def rescale_to_original_size(output_file):
@@ -213,7 +218,7 @@ def rescale_to_original_size(output_file):
                 new_bbox_coord = resize_bbox(
                     bbox_coord=current_string[2:],
                     curr_size = database[image_id]['image'].shape,
-                    orig_size = orig_file.pixel_array.shape
+                    new_size= orig_file.pixel_array.shape
                 )
 
                 new_bbox_coord = [str(current_string[0]), str(current_string[1])] + list(map(str, new_bbox_coord))

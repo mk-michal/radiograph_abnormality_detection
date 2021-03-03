@@ -176,6 +176,7 @@ def create_test_submission(model, model_path_folder, cfg, logger, test_number: i
     with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:
         json.dump(cfg.__dict__, j)
 
+
     final_results_save_path = os.path.join(model_path_folder, f'final_submission_{test_number}.csv')
     logger.info(f'Saving final results for tests set into {final_results_save_path}  ')
     submission_file.to_csv(final_results_save_path, header=True, index=False)

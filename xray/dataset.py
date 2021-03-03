@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 import re
@@ -161,7 +162,8 @@ class VinBigDataset:
         self,
         mode = 'train',
         data_dir = '../data/',
-        split = 0.8
+        split = 0.8,
+        new_images_shape = (1024,1024)
     ):
         if mode not in ['train', 'test', 'eval']:
             raise KeyError('Mode needs to be in [train, test, eval]')
@@ -178,8 +180,23 @@ class VinBigDataset:
             self.available_files = self.available_files[int(len(self.available_files) * split):]
 
         self.length = len(self.available_files)
+
+
         if self.mode != 'test':
             self.data_desc = pd.read_csv(os.path.join(data_dir, 'train.csv'))
+            self.data_desc.fillna(0, inplace=True)
+
+            # FasterRCNN handles class_id==0 as the background.
+            self.data_desc["class_id"] = self.data_desc["class_id"] + 1
+            self.data_desc.loc[self.data_desc["class_id"] == 15, ["class_id"]] = 0
+
+            self.data_desc[['x_min', 'x_max']] = self.data_desc[['x_min', 'x_max']].values * \
+                                                 new_images_shape[0]/self.data_desc['height'].values.reshape(-1,1)
+
+            self.data_desc[['y_min', 'y_max']] = self.data_desc[['y_min', 'y_max']] * \
+                                                 new_images_shape[0]/self.data_desc['width'].values.reshape(-1,1)
+
+            self.data_desc.loc[self.data_desc["class_id"] == 0, ['x_max', 'y_max']] = 1.0
 
     def __len__(self):
         return self.length
@@ -192,20 +209,14 @@ class VinBigDataset:
                 self.data_desc['image_id'] == self.available_files[item]
             ]
             class_labels = image_data_desc.class_id.values
-            bboxes = []
-            for _, row in image_data_desc.iterrows():
-                bbox = (row.x_min, row.y_min, row.x_max, row.y_max, row.class_id)
-                if np.isnan(bbox[0]):
-                    bboxes.append([0, 0, 1, 1, 14])
-                else:
-                    bbox_rescaled = xray.utils.resize_bbox(bbox[:4], (row.width, row.height), image_array.shape)
-                    bboxes.append(bbox_rescaled + [bbox[4]])
+            bboxes = image_data_desc[['x_min', 'y_min', 'x_max', 'y_max', 'class_id']].values
 
             rad_id = image_data_desc.rad_id
         else:
             bboxes = []
             class_labels = []
             rad_id = []
+
         image_transformed = self.transform(
             image=np.stack([image_array, image_array, image_array], axis=2),
             bboxes=bboxes,
@@ -215,28 +226,38 @@ class VinBigDataset:
         )
         image_transformed['image'] = torch.tensor(image_transformed['image'], dtype=torch.float).permute(2,0,1)/255
 
-        labels = torch.Tensor([box[4] for box in image_transformed['bboxes']]).long()
+        labels = torch.Tensor(image_transformed['class_labels']).long()
         if labels.size()[0] == 0:
-            labels = torch.tensor([14], dtype=torch.long)
+            labels = torch.tensor([0], dtype=torch.long)
 
         boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).float()
         if boxes.size()[0] == 0:
-            boxes = torch.Tensor([[0,0,1,1]])
+            boxes = torch.Tensor([[0, 0, 1, 1]])
 
-        boxes, labels = xray.utils.filter_radiologist_findings(boxes, labels)
+        boxes, labels = xray.utils.filter_radiologist_findings(boxes, labels, iou_threshold=0.5)
         if len(labels) == 0:
             # TODO: do something more clever. This happens when radiologist cant decide on either
             #  class in the image
-            boxes = torch.Tensor([[0,0,1,1]])
-            labels = torch.tensor([14], dtype=torch.long)
+            boxes = torch.Tensor([[0, 0, 1, 1]])
+            labels = torch.tensor([0], dtype=torch.long)
+
+
         else:
             for i, label in enumerate(labels):
-                if label.item() == 14:
-                    boxes[i] = torch.Tensor([0,0,1,1])
+                if label.item() == 0:
+                    boxes[i] = torch.Tensor([ 0, 0, 1, 1])
+
+
+        iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        area = torch.as_tensor(area, dtype=torch.float32)
+
         return image_transformed['image'].float(), {
             'boxes': boxes,
             'labels': labels,
-            'file_name': image_transformed['image_name']
+            'file_name': image_transformed['image_name'],
+            'iscrowd': iscrowd,
+            'area': area
         }
 
 class ZeroToOneTransform():
