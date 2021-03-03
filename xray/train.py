@@ -118,7 +118,9 @@ def train(model_path_folder, cfg, logger):
             logger.info('==========================================')
             logger.info(f'Testing results after epoch {epoch + 1} on eval_loader {epoch + 1}')
 
-            all_results, all_targets = xray.evalutation.model_eval_forward(model, eval_loader, cfg.device)
+            all_results, all_targets = xray.evalutation.model_eval_forward(
+                model, eval_loader, cfg.device, logger=logger
+            )
             final_evaluation = xray.evalutation.calculate_metrics(all_results, all_targets)
             logger.info(f'Ma metric on evaluation dataset after epoch {epoch} is with '
                         f'IoU 0.4 is {final_evaluation.stats[0]}')
@@ -162,7 +164,7 @@ def create_test_submission(model, model_path_folder, cfg, logger, test_number: i
     logger.info("===================================================================")
     logger.info("Testing best model on test set")
     all_results, all_targets = xray.evalutation.model_eval_forward(
-        model, test_loader, cfg.device, score_threshold=0.5
+        model, test_loader, cfg.device, score_threshold=0.5, logger=logger
     )
     logger.info("Creating submission file for test data ...")
 

@@ -59,7 +59,7 @@ class XRayDataset:
         assert len(bboxes) == len(labels) == len(class_names)
 
         bboxes_resized = torch.Tensor(
-            list(map(lambda x: resize_bbox(x, image.pixel_array.shape, (400,400)), bboxes))
+            list(map(lambda x: xray.utils.resize_bbox(x, image.pixel_array.shape, (400, 400)), bboxes))
         )
         bboxes_resized, labels = xray.utils.filter_radiologist_findings(bboxes_resized, labels)
 
@@ -243,12 +243,3 @@ class ZeroToOneTransform():
     def __call__(self, image):
         return (image - image.min())/(image - image.min()).max()
 
-
-def resize_bbox(bbox, shape_original, shape_new):
-    """ bbox in format x_min, x_max, y_min, y_max"""
-
-    x_min_new = int(bbox[0] * (shape_new[0]/shape_original[0]))
-    y_min_new = int(bbox[1] * (shape_new[1]/shape_original[1]))
-    x_max_new = int(bbox[2] * (shape_new[0]/shape_original[0]))
-    y_max_new = int(bbox[3] * (shape_new[1]/shape_original[1]))
-    return x_min_new, y_min_new, x_max_new, y_max_new

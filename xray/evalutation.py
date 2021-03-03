@@ -1,4 +1,6 @@
 import argparse
+import logging
+from collections import Counter
 
 import torch
 from torch.utils.data import DataLoader
@@ -26,8 +28,14 @@ def get_rcnn(model_path, device: str = 'cpu'):
 
 
 def model_eval_forward(
-    model: FasterRCNN, loader: DataLoader, device: str = 'cpu', score_threshold = 0.5
+    model: FasterRCNN,
+    loader: DataLoader,
+    device: str = 'cpu',
+    score_threshold: float = 0.5,
+    logger: logging.Logger = None
 ):
+    if logger is None:
+        logger = logging.getLogger('Model Evaluation')
     model = model.to(device)
     model.eval()
     with torch.no_grad():
@@ -44,7 +52,17 @@ def model_eval_forward(
                     'labels': target['labels'].tolist(),
                     'file_name': target['file_name']
                 })
+
+
+
             all_results.extend(results)
+
+        labels_count = Counter([l for t in all_targets for l in t['labels']])
+        predictions_count = Counter([l for p in all_results for l in p['labels']])
+
+
+    logger.info(f'Total class counts of the predictions are: {predictions_count}')
+    logger.info(f'Total class counts of the targets are: {labels_count}')
 
     index_selected = [results['scores'].data.cpu().numpy() > score_threshold for results in all_results]
     results_selected = [{r: val[index].data.cpu().numpy() for r, val in result.items()} for result, index in zip(all_results, index_selected)]
