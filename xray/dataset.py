@@ -191,10 +191,10 @@ class VinBigDataset:
             self.data_desc.loc[self.data_desc["class_id"] == 15, ["class_id"]] = 0
 
             self.data_desc[['x_min', 'x_max']] = self.data_desc[['x_min', 'x_max']].values * \
-                                                 new_images_shape[0]/self.data_desc['height'].values.reshape(-1,1)
+                                                 new_images_shape[0]/self.data_desc['width'].values.reshape(-1,1)
 
             self.data_desc[['y_min', 'y_max']] = self.data_desc[['y_min', 'y_max']] * \
-                                                 new_images_shape[0]/self.data_desc['width'].values.reshape(-1,1)
+                                                 new_images_shape[1]/self.data_desc['height'].values.reshape(-1,1)
 
             self.data_desc.loc[self.data_desc["class_id"] == 0, ['x_max', 'y_max']] = 1.0
 
