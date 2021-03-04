@@ -234,7 +234,9 @@ class VinBigDataset:
         if boxes.size()[0] == 0:
             boxes = torch.Tensor([[0, 0, 1, 1]])
 
-        boxes, labels = xray.utils.filter_radiologist_findings(boxes, labels, iou_threshold=0.5)
+        boxes, labels = xray.utils.filter_radiologist_findings(
+            boxes, labels, iou_threshold=0.5
+        )
         if len(labels) == 0:
             # TODO: do something more clever. This happens when radiologist cant decide on either
             #  class in the image
@@ -251,6 +253,8 @@ class VinBigDataset:
         iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         area = torch.as_tensor(area, dtype=torch.float32)
+        if not all(area > 0):
+            raise ValueError(f'Some areas are equal to 0 or None at image {self.available_files[item]}.')
 
         return image_transformed['image'].float(), {
             'boxes': boxes,

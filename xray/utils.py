@@ -128,7 +128,7 @@ def filter_radiologist_findings(
 
         boxes_iou = torchvision.ops.box_iou(box.unsqueeze(0), boxes_sample)
         boxes_iou_bool = (boxes_iou > iou_threshold).squeeze(0)
-        if boxes_iou.sum().item() >= 1:
+        if boxes_iou_bool.sum().item() >= 1:
             boxes_sample_iou_high = boxes_sample[boxes_iou_bool]
             index_iou_high = boxes_index[boxes_iou_bool]
             final_box = torch.mean(boxes_sample_iou_high, axis = 0)
