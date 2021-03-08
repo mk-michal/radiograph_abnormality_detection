@@ -242,8 +242,8 @@ def rescale_to_original_size(
     new_predicted_strings = []
     for i, (string, image_id) in enumerate(zip(output_file.PredictionString, output_file.image_id)):
         string_list = string.split(' ')
-        orig_shape = (test_data_desc.iloc[test_data_desc.image_id == image_id].iloc[0].width,
-                      test_data_desc.iloc[test_data_desc.image_id == image_id].iloc[0].height)
+        orig_shape = (test_data_desc.loc[test_data_desc.image_id == image_id].iloc[0].width,
+                      test_data_desc.loc[test_data_desc.image_id == image_id].iloc[0].height)
 
         new_string = []
         for index in range(int(len(string_list) / 6)):
