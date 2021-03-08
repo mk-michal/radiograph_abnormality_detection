@@ -57,8 +57,8 @@ def model_eval_forward(
 
             all_results.extend(results)
 
-        labels_count = Counter([l for t in all_targets for l in t['labels']])
-        predictions_count = Counter([l for p in all_results for l in p['labels']])
+        labels_count = Counter([l.item() for t in all_targets for l in t['labels']])
+        predictions_count = Counter([l.item() for p in all_results for l in p['labels']])
 
 
     logger.info(f'Total class counts of the predictions are: {predictions_count}')
