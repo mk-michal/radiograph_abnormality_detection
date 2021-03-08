@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import shelve
+from typing import Optional
 
 from PIL import Image
 
@@ -16,7 +17,8 @@ import torchvision
 
 
 class XRayDataset:
-    def __init__(self, mode: str = 'train', data_dir: str = '../data/chest_xray/', split=0.8):
+    def __init__(
+        self, mode: str = 'train', data_dir: str = '../data/chest_xray/', split=0.8):
         self.mode = mode
 
         self.mode_dir = os.path.join(data_dir, self.mode if mode != 'eval' else 'train')
@@ -163,7 +165,8 @@ class VinBigDataset:
         mode = 'train',
         data_dir = '../data/',
         split = 0.8,
-        new_images_shape = (1024,1024)
+        new_images_shape = (1024,1024),
+        logger: Optional[logging.Logger] = None
     ):
         if mode not in ['train', 'test', 'eval']:
             raise KeyError('Mode needs to be in [train, test, eval]')
@@ -180,6 +183,7 @@ class VinBigDataset:
             self.available_files = self.available_files[int(len(self.available_files) * split):]
 
         self.length = len(self.available_files)
+        self.logger = logger if logger is not None else logging.getLogger(__name__)
 
 
         if self.mode != 'test':
@@ -255,7 +259,11 @@ class VinBigDataset:
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         area = torch.as_tensor(area, dtype=torch.float32)
         if not all(area >= 1):
-            raise ValueError(f'Some areas are equal to 0 or None at image {self.available_files[item]}.')
+            self.logger.warning('There are areas that are less or equal to 1. Filtering out those bboxes')
+            boxes = boxes[area >=1]
+            labels = labels[area >=1]
+            iscrowd = iscrowd[area >=1]
+            area = area[area >=1]
 
         return image_transformed['image'].float(), {
             'boxes': boxes,
