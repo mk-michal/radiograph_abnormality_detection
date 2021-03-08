@@ -108,7 +108,9 @@ def create_true_df(descriptions: List[Dict[str, np.array]]):
     return true_df
 
 
-def create_submission_df(results: List[Dict[str, torch.Tensor ]], image_ids: List[str]):
+def create_submission_df(
+    results: List[Dict[str, torch.Tensor ]], image_ids: List[str], data_desctiption: pd.DataFrame
+):
     all_rows = []
     for image_id, result in zip(image_ids, results):
         labels = [l-1 if int(l) != 0 else 14 for l in result['labels']]
@@ -188,7 +190,7 @@ def no_findings_to_ones(results: List[Dict[str, np.array]]):
     for index in range(len(results)):
         if results[index]['boxes'].size == 0:
             new_dict[index]['boxes'] = np.array([[0, 0, 1, 1]])
-            new_dict[index]['labels'] = np.array([14])
+            new_dict[index]['labels'] = np.array([0])
             new_dict[index]['scores'] = np.array([1.0])
 
     return new_dict
@@ -231,16 +233,17 @@ def resize_bbox(
     y1_new = float(bbox_coord[3]) * new_size[1] / curr_size[1]
     return [x0_new, y0_new, x1_new, y1_new]
 
-def rescale_to_original_size(output_file):
-
-    database = shelve.open(
-       '../input/data-preprocessing/test_data.db' , flag='r', writeback=False
-    )
+def rescale_to_original_size(
+    output_file,
+    test_data_desc: pd.DataFrame,
+    current_size: Tuple[int, int] = (1024, 1024)
+):
 
     new_predicted_strings = []
     for i, (string, image_id) in enumerate(zip(output_file.PredictionString, output_file.image_id)):
         string_list = string.split(' ')
-        orig_file = pydicom.read_file(os.path.join('../input/vinbigdata-chest-xray-abnormalities-detection', 'test', image_id + '.dicom'))
+        orig_shape = (test_data_desc.iloc[test_data_desc.image_id == image_id].iloc[0].width,
+                      test_data_desc.iloc[test_data_desc.image_id == image_id].iloc[0].height)
 
         new_string = []
         for index in range(int(len(string_list) / 6)):
@@ -248,8 +251,8 @@ def rescale_to_original_size(output_file):
             if int(current_string[0]) != 14:
                 new_bbox_coord = resize_bbox(
                     bbox_coord=current_string[2:],
-                    curr_size = database[image_id]['image'].shape,
-                    new_size= orig_file.pixel_array.shape
+                    curr_size=current_size,
+                    new_size=orig_shape
                 )
 
                 new_bbox_coord = [str(current_string[0]), str(current_string[1])] + list(map(str, new_bbox_coord))

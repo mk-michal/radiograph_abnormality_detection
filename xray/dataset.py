@@ -201,6 +201,9 @@ class VinBigDataset:
                                                  new_images_shape[1]/self.data_desc['height'].values.reshape(-1,1)
 
             self.data_desc.loc[self.data_desc["class_id"] == 0, ['x_max', 'y_max']] = 1.0
+        else:
+            self.data_desc = pd.read_csv(os.path.join(data_dir, 'test.csv'))
+
 
     def __len__(self):
         return self.length

@@ -131,6 +131,14 @@ def train(model_path_folder, cfg, logger):
                         f'{xray.utils.time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
                         f'train_loss:{average_loss.value:.4f}. Individual losses: {average_loss.value_all_losses}'
                     )
+                    # TODO: DELETE THIS
+                    create_test_submission(
+                        model=model,
+                        model_path_folder=model_path_folder,
+                        cfg=cfg,
+                        logger=logger,
+                        test_number=test_number
+                    )
             lr_scheduler.step()
 
 
@@ -172,8 +180,10 @@ def train(model_path_folder, cfg, logger):
 
 
 def create_test_submission(model, model_path_folder, cfg, logger, test_number: int = 1):
+    model.eval()
+    test_dataset = xray.dataset.VinBigDataset('test', data_dir=cfg.data_path)
     test_loader = DataLoader(
-        xray.dataset.VinBigDataset('test', data_dir=cfg.data_path),
+        test_dataset,
         shuffle=False,
         num_workers=cfg.n_workers,
         batch_size=cfg.batch_size,
@@ -189,8 +199,11 @@ def create_test_submission(model, model_path_folder, cfg, logger, test_number: i
     logger.info("Creating submission file for test data ...")
 
     all_results = xray.utils.no_findings_to_ones(all_results)
-    submission_file = xray.utils.create_submission_df(all_results, [i['file_name'] for i in all_targets])
-    submission_file = xray.utils.rescale_to_original_size(submission_file)
+    submission_file = xray.utils.create_submission_df(
+        all_results, [i['file_name'] for i in all_targets]
+    )
+
+    submission_file = xray.utils.rescale_to_original_size(submission_file, test_dataset.data_desc)
     submission_file['PredictionString'] = submission_file.PredictionString.apply(xray.utils.do_nms)
 
     with open(os.path.join(model_path_folder, 'model_hyperparameters.json'), 'w') as j:
