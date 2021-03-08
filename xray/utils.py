@@ -109,7 +109,7 @@ def create_true_df(descriptions: List[Dict[str, np.array]]):
 
 
 def create_submission_df(
-    results: List[Dict[str, torch.Tensor ]], image_ids: List[str], data_desctiption: pd.DataFrame
+    results: List[Dict[str, torch.Tensor ]], image_ids: List[str]
 ):
     all_rows = []
     for image_id, result in zip(image_ids, results):
