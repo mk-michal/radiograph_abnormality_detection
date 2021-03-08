@@ -15,8 +15,12 @@ import torchvision
 
 class Averager:
     def __init__(self):
+        self.loss_box_reg = 0.0
+        self.loss_objectness = 0.0
+        self.loss_rpn_box_reg = 0.0
         self.current_total = 0.0
         self.iterations = 0.0
+        self.loss_classifier = 0.0
 
     def send(self, value):
         self.current_total += value
@@ -29,9 +33,36 @@ class Averager:
         else:
             return 1.0 * self.current_total / self.iterations
 
+    @property
+    def value_all_losses(self):
+        if self.iterations == 0:
+            return 0
+        else:
+            return {
+                'loss_classifier': self.loss_classifier/self.iterations,
+                'loss_box_reg': self.loss_box_reg/self.iterations,
+                'loss_objectness': self.loss_objectness/self.iterations,
+                'loss_rpn_box_reg': self.loss_rpn_box_reg/self.iterations
+            }
+
     def reset(self):
         self.current_total = 0.0
         self.iterations = 0.0
+
+    def reset_all_losses(self):
+        self.loss_classifier = 0.0
+        self.loss_box_reg = 0.0
+        self.loss_objectness = 0.0
+        self.loss_rpn_box_reg = 0.0
+        self.iterations = 0.0
+
+
+    def send_all(self, losses: Tuple[float, float, float, float]):
+        self.loss_classifier += losses[0]
+        self.loss_box_reg += losses[1]
+        self.loss_objectness += losses[2]
+        self.loss_rpn_box_reg += losses[3]
+
 
 
 def my_custom_collate(x):

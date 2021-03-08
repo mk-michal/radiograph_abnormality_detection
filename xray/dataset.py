@@ -230,7 +230,7 @@ class VinBigDataset:
         if labels.size()[0] == 0:
             labels = torch.tensor([0], dtype=torch.long)
 
-        boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']]).float()
+        boxes = torch.Tensor([box[:4] for box in image_transformed['bboxes']])
         if boxes.size()[0] == 0:
             boxes = torch.Tensor([[0, 0, 1, 1]])
 
@@ -240,20 +240,21 @@ class VinBigDataset:
         if len(labels) == 0:
             # TODO: do something more clever. This happens when radiologist cant decide on either
             #  class in the image
-            boxes = torch.Tensor([[0, 0, 1, 1]])
+            boxes = torch.tensor([[0, 0, 1, 1]], dtype=torch.float32)
             labels = torch.tensor([0], dtype=torch.long)
 
 
         else:
             for i, label in enumerate(labels):
                 if label.item() == 0:
-                    boxes[i] = torch.Tensor([ 0, 0, 1, 1])
+                    boxes[i] = torch.tensor([ 0, 0, 1, 1], dtype=torch.float32)
 
 
+        boxes = boxes.long()
         iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         area = torch.as_tensor(area, dtype=torch.float32)
-        if not all(area > 0):
+        if not all(area >= 1):
             raise ValueError(f'Some areas are equal to 0 or None at image {self.available_files[item]}.')
 
         return image_transformed['image'].float(), {

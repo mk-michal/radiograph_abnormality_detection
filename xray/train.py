@@ -87,29 +87,49 @@ def train(model_path_folder, cfg, logger):
     best_eval_ma = 0
     test_number = 1
     average_loss = xray.utils.Averager()
+
     try:
         for epoch in range(cfg.n_epochs):
             average_loss.reset()
+            average_loss.reset_all_losses()
             model.train()
             epoch_time = time.time()
             for step, (x_batch, y_batch) in enumerate(train_loader):
                 x_batch = [x.to(cfg.device) for x in x_batch]
-                y_batch = [
-                    {'boxes': j['boxes'].to(cfg.device), 'labels': j['labels'].to(cfg.device)} for j in y_batch
-                ]
-                # y_batch = y_batch.to(cfg.device)
+                y_batch = [{
+                    'boxes': j['boxes'].to(cfg.device),
+                    'labels': j['labels'].to(cfg.device),
+                    'iscrowd': j['iscrowd'].to(cfg.device),
+                    'area': j['area'].to(cfg.device),
+                    'file_name': j['file_name']
+                } for j in y_batch]
+
                 batch_time = time.time()
                 loss_dict = model(x_batch, y_batch)
                 total_loss = sum(loss for loss in loss_dict.values())
+                if torch.isnan(total_loss).any():
+                    logger.warning(f'There is nan in final losses. Some Debugging needed. Error on '
+                                   f'images {[i["file_name"] for i in y_batch]} with labels {[i["labels"] for i in y_batch]}'
+                                   f'Loss values are {loss_dict}')
+
+                    logger.warning('Skipping the batch, moving to another ... ')
+                    continue
+
                 optimizer.zero_grad()
 
                 total_loss.backward()
                 optimizer.step()
                 average_loss.send(total_loss.item())
+                average_loss.send_all(
+                    (loss_dict['loss_classifier'].item(),
+                    loss_dict['loss_box_reg'].item(),
+                    loss_dict['loss_objectness'].item(),
+                    loss_dict['loss_rpn_box_reg'].item())
+                )
                 if (step + 1) % cfg.log_step == 0 or (step + 1) == len(train_loader):
                     logger.info(
                         f'{xray.utils.time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
-                        f'train_loss:{average_loss.value:.4f}'
+                        f'train_loss:{average_loss.value:.4f}. Individual losses: {average_loss.value_all_losses}'
                     )
             lr_scheduler.step()
 
