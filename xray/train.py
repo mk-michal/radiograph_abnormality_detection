@@ -131,14 +131,6 @@ def train(model_path_folder, cfg, logger):
                         f'{xray.utils.time_str()}, Step {step}/{len(train_loader)} in Ep {epoch}, {time.time() - batch_time:.2f}s '
                         f'train_loss:{average_loss.value:.4f}. Individual losses: {average_loss.value_all_losses}'
                     )
-                    # TODO: DELETE THIS
-                    create_test_submission(
-                        model=model,
-                        model_path_folder=model_path_folder,
-                        cfg=cfg,
-                        logger=logger,
-                        test_number=test_number
-                    )
             lr_scheduler.step()
 
 
