@@ -270,7 +270,7 @@ class VinBigDataset:
 
         return image_transformed['image'].float(), {
             'boxes': boxes,
-            'labels': labels,
+            'labels': labels.long(),
             'file_name': image_transformed['image_name'],
             'iscrowd': iscrowd,
             'area': area

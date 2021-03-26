@@ -6,6 +6,7 @@ import shelve
 from typing import Dict, List, Tuple
 
 import albumentations as A
+import ensemble_boxes
 import numpy as np
 import pandas as pd
 import pydicom
@@ -136,14 +137,14 @@ def get_augmentation(prob = 0.8):
         [A.augmentations.RandomBrightnessContrast(p=prob),
          A.augmentations.Equalize(p=prob),
          A.augmentations.RGBShift(p=prob),
-         A.augmentations.Rotate(p=prob),
+         A.augmentations.Flip(p=prob)
          ]
         ,
         bbox_params=A.BboxParams(format='pascal_voc'),
-        p = 1
+        p=1
     )
 
-def filter_radiologist_findings(
+def filter_radiologist_findings_deprecated(
     boxes: torch.Tensor,
     labels: torch.Tensor,
     iou_threshold: float = 0.4
@@ -174,6 +175,36 @@ def filter_radiologist_findings(
         return torch.stack(final_boxes), torch.tensor(final_labels, dtype=torch.long)
     else:
         return torch.Tensor([[]]), torch.Tensor([])
+
+
+def filter_radiologist_findings(
+    boxes: torch.Tensor,
+    labels: torch.Tensor,
+    iou_threshold: float = 0.4,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    # rescale by height and width
+
+    boxes_final, labels_final = [], []
+
+    for label in torch.unique(labels):
+        boxes_subset = boxes[labels == label.item()]
+        if len(boxes_subset) == 1:
+            boxes_final.append(boxes_subset[0])
+            labels_final.append(label.item())
+        else:
+            index_boxes = torchvision.ops.nms(
+                boxes=boxes_subset,
+                scores=torch.ones(len(boxes_subset)),
+                iou_threshold=iou_threshold
+            )
+            for i in index_boxes:
+                boxes_final.append(boxes_subset[i])
+                labels_final.append(label.item())
+    labels_tensor = torch.Tensor(labels_final)
+    boxes_tensor = torch.stack(boxes_final)
+
+    return boxes_tensor, labels_tensor
+
 
 def transform_no_findings(results):
     new_dict = copy.deepcopy(results)
@@ -242,8 +273,8 @@ def rescale_to_original_size(
     new_predicted_strings = []
     for i, (string, image_id) in enumerate(zip(output_file.PredictionString, output_file.image_id)):
         string_list = string.split(' ')
-        orig_shape = (test_data_desc.loc[test_data_desc.image_id == image_id].iloc[0].width,
-                      test_data_desc.loc[test_data_desc.image_id == image_id].iloc[0].height)
+        orig_shape = (test_data_desc.loc[test_data_desc.image_id == image_id].iloc[0].height,
+                      test_data_desc.loc[test_data_desc.image_id == image_id].iloc[0].width)
 
         new_string = []
         for index in range(int(len(string_list) / 6)):
