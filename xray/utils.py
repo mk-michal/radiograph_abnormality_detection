@@ -6,7 +6,6 @@ import shelve
 from typing import Dict, List, Tuple
 
 import albumentations as A
-import ensemble_boxes
 import numpy as np
 import pandas as pd
 import pydicom
